@@ -121,6 +121,35 @@ printf '\n[selftest]\nroot = "C:\\Users\\deniz\\nowhere"\n' >> config/lionel.tom
 expect_violation architecture "ARCH-017" "a backslashed Windows path in config"
 unplant config/lionel.toml "$B_TOML"
 
+# 4c. ADR-0009 / ARCH-002: a caller branching on provider identity by string rather than
+#     on a ProviderCapabilities flag. Existed since Phase 0 with no planted violation of
+#     its own -- the `architecture` gate was already covered via ARCH-001 and ARCH-017, so
+#     `gate-coverage` (which tracks gates, not rules) would not have noticed ARCH-002
+#     silently stop firing. This is that missing assertion, closed the same day ADR-0039
+#     found the pattern's sibling four times over in the brain contracts.
+mkdir -p src/lionel/brain/_selftest
+cat > src/lionel/brain/_selftest/branch.py <<'PY'
+def route(provider):
+    if provider == "anthropic":
+        return "native_tools"
+PY
+RESTORE+=("rm -rf '$ROOT/src/lionel/brain/_selftest'")
+expect_violation architecture "ARCH-002" "a caller branching on provider identity"
+rm -rf src/lionel/brain/_selftest
+
+# 4d. ADR-0001: a module outside brain/providers/ importing a concrete provider directly.
+#     "core/turn_executor imports BrainProvider and nothing else" is ADR-0001's other half
+#     of ARCH-002, and had no check or planted violation at all until now -- the import
+#     restriction and the branching restriction are one sentence in the ADR and were one
+#     gap in the gate.
+mkdir -p src/lionel/core/_selftest
+cat > src/lionel/core/_selftest/caller.py <<'PY'
+from lionel.brain.providers.anthropic import AnthropicProvider
+PY
+RESTORE+=("rm -rf '$ROOT/src/lionel/core/_selftest'")
+expect_violation architecture "ARCH-018" "a caller importing a concrete provider directly"
+rm -rf src/lionel/core/_selftest
+
 # 5. STRUCT-004 — no runtime code — was LIFTED at architecture 1.6.0, when Phase 1 opened
 #    and `repository.runtime_code_forbidden_until` went to null. The rule cannot fire, so
 #    an assertion against it would fail for the right reason and still leave a red suite.

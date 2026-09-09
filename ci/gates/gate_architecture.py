@@ -13,7 +13,8 @@ from _lib import Gate, load_policy, ROOT, rel, read_text, repo_files, load_json
 
 def main():
     p = load_policy(); g = Gate("architecture", "Architecture conformance",
-        ["ADR-0006", "ADR-0007", "ADR-0009", "ADR-0010", "ADR-0011", "ADR-0012", "ADR-0025", "ADR-0026"])
+        ["ADR-0001", "ADR-0006", "ADR-0007", "ADR-0009", "ADR-0010", "ADR-0011", "ADR-0012",
+         "ADR-0025", "ADR-0026"])
     cfg = p["architecture"]
 
     # ── ADR-0011: shell execution abolished ──────────────────────────────────
@@ -41,6 +42,29 @@ def main():
                     "nominal — the abstraction exists but every caller works around it.",
                     "Branch on a capability flag (`native_tools`, `structured_output`, …). "
                     "If the capability you need is not declared, add it to the contract.", r, i)
+
+    # ── ADR-0001: no module outside brain/providers/ imports a concrete provider ─
+    # "core/turn_executor imports BrainProvider and nothing else. No module outside
+    # brain/providers/ may import a concrete provider or branch on a provider name." The
+    # second half is ARCH-002, above. This is the first half, and until Phase 3's contract
+    # test (ADR-0039) it had no check at all — the same "step 6 gets skipped" gap this
+    # gate's own module docstring warns about, one rule over.
+    provider_import = re.compile(r'^\s*(?:from|import)\s+lionel\.brain\.providers\b')
+    for f in repo_files(include={".py"}):
+        r = rel(f)
+        if any(r.startswith(d) for d in cfg["provider_branch_allowed_dirs"]):
+            continue
+        for i, line in enumerate(read_text(f).splitlines(), 1):
+            if provider_import.search(line):
+                g.check()
+                g.fail("ARCH-018", "importing a concrete provider from outside brain/providers/",
+                    "ADR-0001: 'No module outside brain/providers/ may import a concrete "
+                    "provider or branch on a provider name.' A caller that imports "
+                    "AnthropicProvider directly has the same problem branching on the string "
+                    "\"anthropic\" does — it can only be swapped by editing that caller, which "
+                    "is what the BrainProvider abstraction exists to make unnecessary.",
+                    "Import `lionel.brain.BrainProvider` (or the factory that selects one from "
+                    "`[brain] provider`) instead of a concrete adapter.", r, i)
 
     # ── ADR-0006: the control plane never carries media payload ──────────────
     for d in cfg["control_plane_dirs"]:

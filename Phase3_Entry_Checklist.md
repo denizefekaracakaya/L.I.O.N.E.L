@@ -8,7 +8,7 @@ Phase 3 — Brain Gateway & Provider Abstraction, gate **G3**.
 | Gate | G2 → G3 |
 | Status | **OPEN** — G2 signed 2026-09-02; item 1 cleared, the rest are Phase 3 work |
 | Items | 8 |
-| Done | **2 of 8** |
+| Done | **3 of 8** |
 | Blocking | 0 |
 
 **This document states no counts about the pipeline.** `Phase1_Entry_Checklist.md` is out of
@@ -140,14 +140,25 @@ them, and the two `StopReason` copies became one. The four tests inverted into f
 coherence-pinning classes. **Item 5 is unblocked; `src/lionel/brain/` may be written against
 contracts that no longer contradict each other.**
 
-### ☐ 6. The static check that no caller branches on provider name
+### ☑ 6. The static check that no caller branches on provider name — **DONE 2026-09-10**
 
 ADR-0001: *"No module outside `brain/providers/` may import a concrete provider or branch on
 a provider name."* A gate enforcing an **existing** decision more completely needs no ADR —
 that is §4's third permitted item, and it is the same standing `ARCH-001` has.
 
-Seven steps, `CI_Architecture.md` §7, and step 6 is the one that gets skipped: a planted
-violation in `ci/self_test.sh`. `gate-coverage` now fails if it is missing.
+**The branching half (`ARCH-002`) already existed and had never been exercised.** Its own
+gate — `architecture` — was already marked covered via `ARCH-001` and `ARCH-017`, so
+`gate-coverage` (which tracks gates, not rules) would not have noticed `ARCH-002` silently
+stop firing. That is exactly "step 6 is the one that gets skipped," one rule over from the
+gate it was supposed to protect.
+
+**The import half had no check at all.** New rule `ARCH-018`: no module outside
+`src/lionel/brain/providers/` may `import lionel.brain.providers*`. Both `ARCH-002` and
+`ARCH-018` now have a planted violation in `ci/self_test.sh` (33 → 35, both added together),
+and both are cited against `ADR-0001`, which the gate's own ADR list had never named.
+
+Verified: 23/23 gates · self-test 35/35 · checksum unchanged (`ci/gates/*.py` and
+`ci/self_test.sh` are not in the checksum set) · 151 rules, regenerated docs current.
 
 ### ☐ 7. Cancellation within 200 ms, and `health()` reporting *not ready*
 

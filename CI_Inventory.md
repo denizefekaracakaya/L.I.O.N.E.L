@@ -8,11 +8,11 @@
 | | |
 |---|---|
 | Gates | **23** |
-| Rules | **150** |
+| Rules | **151** |
 | Workflow jobs | **27** |
 | Current state | **all gates pass · 0 broken** |
 | Runner | `bash ci/run_gates.sh [gate]` |
-| Self-test | `bash ci/self_test.sh` — 33/33 planted violations caught |
+| Self-test | `bash ci/self_test.sh` — 35/35 planted violations caught |
 | Runtime code | **9 files** under `src/lionel/` |
 
 ---
@@ -39,7 +39,7 @@ Every gate is a standalone script. None depends on another, so a failure never c
 | 14 | [`dependencies`](ci/gates/gate_dependencies.py) | ADR-0013 | 3 |
 | 15 | [`mcp`](ci/gates/gate_mcp.py) | ADR-0032, ADR-0013, ADR-0015 | 4 |
 | 16 | [`shell`](ci/gates/gate_shell.py) | ADR-0011, ADR-0014 | 3 |
-| 17 | [`architecture`](ci/gates/gate_architecture.py) | ADR-0006, ADR-0007, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0025, ADR-0026 | 17 |
+| 17 | [`architecture`](ci/gates/gate_architecture.py) | ADR-0001, ADR-0006, ADR-0007, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0025, ADR-0026 | 18 |
 | 18 | [`l0-conformance`](ci/gates/gate_l0_conformance.py) | ADR-0007, ADR-0011, ADR-0013, ADR-0006, ADR-0012 | 24 |
 | 19 | [`checksum`](ci/gates/gate_checksum.py) | ADR-0030, ADR-0013 | 4 |
 | 20 | [`generated-docs`](ci/gates/gate_generated_docs.py) | ADR-0030, ADR-0016 | 2 |
@@ -104,7 +104,7 @@ Which decisions have an executable test, and which do not.
 | Job | Type | Notes |
 |---|---|---|
 | 23 policy gates | one per gate | **No `needs:` between them.** Independent by design |
-| `gate-self-test` | meta | Plants 33 known violations, asserts each is caught |
+| `gate-self-test` | meta | Plants 35 known violations, asserts each is caught |
 | `l0-conformance` | blocking | `needs: [structure, contracts, architecture]`. ADR-0007 |
 | `checksum` · `generated-docs` · `gate-coverage` | **meta** | Check the pipeline, not the repository. ADR-0030 |
 | `windows-policy-gates` | platform | `windows-latest` under Git Bash. ADR-0002, ADR-0014 |
@@ -136,6 +136,8 @@ A gate that passes a clean repository but would miss a real violation is decorat
 | a resurrected shell capability | `architecture` | ARCH-001 |
 | a path whose absence is a recorded decision | `structure` | STRUCT-003 |
 | a backslashed Windows path in config | `architecture` | ARCH-017 |
+| a caller branching on provider identity | `architecture` | ARCH-002 |
+| a caller importing a concrete provider directly | `architecture` | ARCH-018 |
 | an unregistered TODO | `no-todo` | TODO-001 |
 | a script without strict mode | `shell` | SH-STRICT |
 | a bare interpreter name (the Store stub) | `shell` | SH-BARE-PYTHON |
@@ -162,7 +164,7 @@ A gate that passes a clean repository but would miss a real violation is decorat
 | a quoted config block that differs from the file by one line | `doc-quotes` | QUOTE-001 |
 | a forbidden package installed transitively | `dependencies` | DEP-003 |
 
-**33/33 caught.**
+**35/35 caught.**
 
 ---
 
