@@ -8,7 +8,7 @@ Phase 3 — Brain Gateway & Provider Abstraction, gate **G3**.
 | Gate | G2 → G3 |
 | Status | **OPEN** — G2 signed 2026-09-02; item 1 cleared, the rest are Phase 3 work |
 | Items | 8 |
-| Done | **3 of 8** |
+| Done | **4 of 8** |
 | Blocking | 0 |
 
 **This document states no counts about the pipeline.** `Phase1_Entry_Checklist.md` is out of
@@ -175,11 +175,38 @@ than being invented again: `scripts/verify_memory.sh` and `scripts/check_env.sh`
 scripts, opt-in, announced before they act, exit `0/1/2`, and neither is a gate. **R-A20's
 residual applies unchanged** — nothing forces them to run, and nothing can.
 
-### ☐ 8. The cost ceiling
+### ☑ 8. The cost ceiling — **DONE 2026-09-10**
 
 `[brain.quota]` already exists in `config/lionel.toml` — `max_tokens_per_turn`,
 `max_spend_per_day_usd`, `on_exceeded = "halt"` — chosen by ADR-0009 and read rather than
 defaulted, the way `MemoryConfig` reads `[memory]`. Enforcement is implementation.
+
+`src/lionel/brain/accounting/`: `BrainQuotaConfig.from_toml()` reads the section with the
+same refusals `MemoryConfig` uses for `[memory]` — missing file, missing section, missing
+key, an `on_exceeded` value that isn't `halt`/`warn`, a non-positive token ceiling, negative
+spend. `QuotaGuard` tracks per-turn output tokens and per-calendar-day estimated spend
+against it and returns a verdict; it does not call a provider or issue a
+`CancellationToken`, because neither exists yet — it is the decision, not the action, for
+whichever of `turn_executor` or the brain gateway calls it once items 2–4 are decided.
+
+**Reads `StreamEvent.Usage`, not only `ProviderResponse.usage`**, which is the reason
+ADR-0039 made the two shapes identical: the ceiling has to *halt generation*, so the guard
+has to act on the mid-stream object, not the one that arrives after generation is already
+over. `token_counts_estimated` gets a 20% safety margin (`ESTIMATED_TOKEN_SAFETY_MARGIN`,
+a code constant rather than a fourth config key — `[brain.quota]` is ADR-0009's contract),
+per that field's own description: *"the quota guard then applies a safety margin rather
+than trusting the number."*
+
+`tests/unit/test_brain_accounting.py`: 24 assertions — config refusals, per-turn
+accumulation and the exact-at-the-ceiling boundary, the estimation margin (including the
+case where it turns a pass into a halt), `warn` continuing to accumulate rather than
+resetting, the daily boundary under a scripted clock, and a null `estimated_cost_usd`
+(a local provider) contributing nothing. `tests/contract/test_brain_contract.py` gained one
+more: `QuotaVerdict.stop_reason` is checked against the live `StopReasonValues` enum, so the
+guard cannot drift from the contract it hands its verdict to.
+
+Verified: 23/23 gates · self-test 35/35 · checksum unchanged (`src/lionel/` is not in the
+checksum set) · 256 tests, 1 skipped.
 
 ---
 

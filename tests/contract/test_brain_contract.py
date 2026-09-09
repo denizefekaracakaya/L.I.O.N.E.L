@@ -278,5 +278,25 @@ class TestStopReasonIsOneEnumNow(BrainContracts):
         self.assertFalse(valid(self.response["properties"]["stop_reason"], "refusal"))
 
 
+@unittest.skipIf(jsonschema is None, "jsonschema not installed (pyproject `ci` extra)")
+class TestQuotaGuardAgreesWithTheStopReasonContract(BrainContracts):
+    """`QuotaGuard` (`Phase3_Entry_Checklist.md` item 8) hands its `stop_reason` string
+    straight to whichever terminal event a caller is about to emit. If that string ever
+    stops being a member of `StopReasonValues`, the guard would produce an event the
+    contract rejects — silently, since `QuotaGuard` has no schema of its own to check
+    against. This is the check."""
+
+    def test_quota_guards_stop_reason_is_a_valid_stop_reason(self):
+        from lionel.brain.accounting import BrainQuotaConfig, QuotaGuard
+
+        cfg = BrainQuotaConfig(max_tokens_per_turn=10, max_spend_per_day_usd=5.0,
+                               on_exceeded="halt")
+        guard = QuotaGuard(cfg)
+        verdict = guard.observe("turn-1", {"output_tokens": 100})
+        self.assertTrue(verdict.must_halt)
+        self.assertTrue(valid(self.stream["$defs"]["StopReasonValues"],
+                              verdict.stop_reason))
+
+
 if __name__ == "__main__":
     unittest.main()
