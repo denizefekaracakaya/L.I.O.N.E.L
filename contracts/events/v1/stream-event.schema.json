@@ -4,11 +4,12 @@
   "title": "StreamEvent",
   "description": "The single normalized streaming event union emitted by every BrainProvider (ADR-0009). Callers never see provider-native chunk formats. A discriminated union on `type`.",
   "x-lionel": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "adr": [
       "ADR-0009",
       "ADR-0001",
-      "ADR-0025"
+      "ADR-0025",
+      "ADR-0039"
     ],
     "stability": "stable",
     "plane": "internal",
@@ -25,7 +26,12 @@
     ],
     "compatibility": {
       "since": "1.0.0",
-      "breaking_changes": [],
+      "breaking_changes": [
+        "1.1.0 (ADR-0039): ToolCallDelta.name now constrains to ToolSpec.name's pattern. A name a provider could previously stream that ToolSpec would have rejected is now unrepresentable; nothing in the repository produces one, so nothing migrates."
+      ],
+      "minor_changes": [
+        "1.1.0 (ADR-0039): Usage gains token_counts_estimated, identical to ProviderResponse.usage's field of the same name — a widening, every 1.0.0 instance stays valid. $defs.StopReason is now a $ref to the new $defs.StopReasonValues, which ProviderResponse.stop_reason also refs, so the two enums cannot drift apart."
+      ],
       "notes": "Adding a variant is MINOR ONLY IF consumers are required to skip unknown `type` values — they are, and this is stated in the description of `type`. Changing the discriminator from `type` would be MAJOR and is not anticipated. `thinking_delta` is provisional: it exists so extended-reasoning providers have somewhere to put content, and consumers may discard it entirely."
     }
   },
@@ -201,8 +207,8 @@
           "description": "Position in the batch when a provider emits parallel tool calls."
         },
         "name": {
-          "type": "string",
-          "description": "Present on the FIRST delta of a call. Absent on continuations."
+          "$ref": "https://lionel.local/contracts/events/v1/tool-spec.schema.json#/properties/name",
+          "description": "Present on the FIRST delta of a call. Absent on continuations. ADR-0039: constrained to the same pattern as ToolSpec.name, so a model asking for a malformed tool name is unrepresentable here rather than passed inward — the ADR-0023 case-folding hazard entering through a report of what the model asked for."
         },
         "arguments_delta": {
           "type": "string",
@@ -237,11 +243,20 @@
           ],
           "minimum": 0,
           "description": "Null where the provider is local and has no monetary cost. Feeds the ADR-0009 quota ceiling — an autonomous loop against a metered API needs a hard stop."
+        },
+        "token_counts_estimated": {
+          "type": "boolean",
+          "default": false,
+          "description": "ADR-0039. True when the provider lacks token_counting; the quota guard then applies a safety margin rather than trusting the number. Identical to ProviderResponse.usage's field of the same name — the ADR-0009 ceiling halts generation, so the guard reads THIS object, mid-stream, not the terminal one."
         }
       },
       "additionalProperties": false
     },
     "StopReason": {
+      "$ref": "https://lionel.local/contracts/events/v1/stream-event.schema.json#/$defs/StopReasonValues",
+      "$comment": "ADR-0039 item 5. ProviderResponse.stop_reason refs StopReasonValues too, so the two enums cannot drift apart the way the identical-but-copied pair did before this version."
+    },
+    "StopReasonValues": {
       "type": "string",
       "enum": [
         "end_turn",
@@ -296,7 +311,8 @@
       "usage": {
         "input_tokens": 1420,
         "output_tokens": 88,
-        "estimated_cost_usd": null
+        "estimated_cost_usd": null,
+        "token_counts_estimated": true
       }
     },
     {

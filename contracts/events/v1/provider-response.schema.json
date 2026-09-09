@@ -5,8 +5,8 @@
   "description": "The completed, aggregated result of a ProviderRequest. StreamEvent carries the incremental view; this is the terminal one, produced after the stream closes. Both exist because TurnExecutor needs incremental deltas for low-latency TTS chunking AND a settled object for the transcript, replay tests, and cost accounting.",
 
   "x-lionel": {
-    "version": "1.0.0",
-    "adr": ["ADR-0009", "ADR-0001", "ADR-0021", "ADR-0025"],
+    "version": "1.1.0",
+    "adr": ["ADR-0009", "ADR-0001", "ADR-0021", "ADR-0025", "ADR-0039"],
     "stability": "stable",
     "plane": "internal",
     "owner": "brain",
@@ -14,7 +14,7 @@
     "consumers": ["turn_executor", "session_coordinator", "eval_harness", "cost_accounting", "audit_log"],
     "compatibility": {
       "since": "1.0.0",
-      "breaking_changes": [],
+      "breaking_changes": ["1.1.0 (ADR-0039): tool_calls[].name now constrains to ToolSpec.name's pattern. stop_reason is now a $ref to StreamEvent.$defs.StopReasonValues rather than a second copy of the enum — same values today, but the two can no longer drift apart silently. Nothing in the repository produces a ProviderResponse yet, so nothing migrates."],
       "notes": "The eval harness (ADR-0021) consumes this shape to compare providers, so changing it invalidates stored golden results and forces a re-baseline. That cost is why `provider` and `model` are recorded on every response rather than assumed from config — a result whose producing model is unknown is not comparable to anything. Adding a `stop_reason` value is MAJOR; consumers switch exhaustively."
     }
   },
@@ -37,7 +37,7 @@
         "properties": {
           "call_id": { "type": "string" },
           "index": { "type": "integer", "minimum": 0 },
-          "name": { "type": "string" },
+          "name": { "$ref": "https://lionel.local/contracts/events/v1/tool-spec.schema.json#/properties/name", "description": "ADR-0039: constrained to the same pattern as ToolSpec.name, so a malformed name a provider reports is unrepresentable here rather than passed inward." },
           "arguments": { "type": "object", "additionalProperties": true, "description": "PARSED. Assembled from accumulated arguments_delta fragments and parsed only after the stream marked the call complete — parsing a partial fragment is the classic streaming tool-call bug." }
         },
         "additionalProperties": false
@@ -45,9 +45,8 @@
     },
     "structured_output": { "type": ["object", "null"], "additionalProperties": true },
     "stop_reason": {
-      "type": "string",
-      "enum": ["end_turn", "tool_use", "max_tokens", "stop_sequence", "cancelled", "quota_exceeded", "provider_error"],
-      "description": "`cancelled` is a NORMAL outcome under ADR-0025, not a fault — barge-in produces it on every interrupted turn."
+      "$ref": "https://lionel.local/contracts/events/v1/stream-event.schema.json#/$defs/StopReasonValues",
+      "description": "`cancelled` is a NORMAL outcome under ADR-0025, not a fault — barge-in produces it on every interrupted turn. ADR-0039: refs the same enum StreamEvent uses, rather than a second copy of it."
     },
     "usage": {
       "type": "object",

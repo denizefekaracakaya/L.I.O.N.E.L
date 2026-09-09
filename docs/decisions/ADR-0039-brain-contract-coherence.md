@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Proposed** — drafted 2026-09-02, not yet approved by Efe |
+| Status | **Accepted** — Efe, 2026-09-02. In force. See the Erratum |
 | Date | 2026-09-02 |
 | Phase | 3 |
 | Related | [ADR-0009](ADR-0009-extended-brain-provider-contract.md), [ADR-0001](ADR-0001-swappable-brain-provider.md), [ADR-0025](ADR-0025-cancellation-backpressure.md), [ADR-0023](ADR-0023-turkish-locale-correctness.md), [ADR-0037](ADR-0037-tombstone-record-shape.md) |
@@ -185,3 +185,42 @@ On acceptance:
 | `ci/self_test.sh` | a planted `usage` StreamEvent carrying `token_counts_estimated` with the field removed again, asserting `JSON-004` |
 
 Gate **G3**, alongside the `health()` and cancellation clauses these unblock.
+
+## Erratum — 2026-09-02: Accepted; the withholding is discharged
+
+This ADR was written while `Proposed`, and its Decision section describes that pending state
+as ongoing. Efe accepted it on 2026-09-02, the same day it was drafted. The decision is
+unchanged — what follows corrects text that has stopped being true, per ADR-0029 rule 2.
+
+The Decision section opened:
+
+> **Withheld until this ADR is Accepted.** All five schemas are `stability: stable` and
+> inside the architecture checksum set; `Architecture_Freeze.md` §4 requires an ADR *and*
+> Efe's approval before a stable surface moves. ADR-0029, ADR-0032, ADR-0033, ADR-0034,
+> ADR-0035, ADR-0036 and ADR-0037 each practised this withholding; this is the eighth.
+
+That is discharged. All five items in the Decision were delivered exactly as specified,
+each versioned to **1.1.0**:
+
+| | |
+|---|---|
+| `provider-capabilities.schema.json` | `$defs.HealthStatus` is now `{"$ref": ".../core/v1/health-status.schema.json"}`, with a `$comment` recording why. `compatibility.breaking_changes` records the change |
+| `stream-event.schema.json` | `Usage.token_counts_estimated` added; `ToolCallDelta.name` refs `tool-spec.schema.json#/properties/name`; `$defs.StopReason` refs the new `$defs.StopReasonValues`, which holds the enum `StopReason` used to carry directly |
+| `provider-request.schema.json` | `cancellation_token_id` refs `cancellation.schema.json#/properties/token_id` in place of an unconstrained `string` |
+| `provider-response.schema.json` | `tool_calls[].name` refs `tool-spec.schema.json#/properties/name`; `stop_reason` refs `stream-event.schema.json#/$defs/StopReasonValues` |
+| `test_brain_contract.py` | rewritten rather than patched: the four defect-pinning tests became four coherence-pinning test classes (`TestHealthStatusIsOneContractNow`, `TestUsageCanSayTheCountsAreEstimatedInBothPlaces`, `TestIdentifiersArePinnedInOnePlaceOnly`, `TestStopReasonIsOneEnumNow`), and the file gained an offline `$ref` registry — cross-file refs did not exist in these five schemas before this ADR, and the file's own docstring had said none did |
+| `ci/self_test.sh` | 32 → **33**: a planted `usage` StreamEvent example with `Usage.token_counts_estimated` removed from the schema again, asserting `JSON-004` |
+
+**One example was extended rather than only the schema.** `stream-event.schema.json`'s
+existing `usage` example — `provider: "ollama"`, which `provider-capabilities.schema.json`'s
+own example already marks `token_counting: false` — gained
+`"token_counts_estimated": true`. Without it the new field would have shipped with no
+example exercising it, which is the same gap ADR-0037's Context found: an unexercised part
+of a schema is a part that cannot be wrong because nothing tests it against anything.
+
+**The cross-file `$ref`s needed an offline registry the test file did not have.** The first
+run after the schema edits failed seven of twelve tests with `jsonschema.exceptions.
+_WrappedReferencingError: Unresolvable`, because `valid()` validated each fragment with no
+knowledge of the other four files. `test_memory_contract.py` had already solved this —
+`_registry_arg` maps every `https://lionel.local/...` `$id` in `contracts/` onto its file on
+disk, so nothing is fetched and ADR-0007's guarantee holds. Copied rather than re-derived.

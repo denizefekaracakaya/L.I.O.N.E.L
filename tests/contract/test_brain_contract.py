@@ -2,28 +2,38 @@
 
 Phase 3 builds `src/lionel/brain/` against `tool-spec`, `stream-event`, `provider-request`,
 `provider-response` and `provider-capabilities`. All five are `stability: stable`, all five
-are inside the architecture checksum set, and **none of them has ever had a consumer**.
+are inside the architecture checksum set, and until ADR-0039 none had ever had a consumer.
 
-That is the same position `memory-record.schema.json` was in for twenty-six days before its
+That was the same position `memory-record.schema.json` was in for twenty-six days before its
 first consumer found that it described a state it forbade (ADR-0037). `Phase2_Final_Signoff.md`
 §1 records the pattern: every one of G2's four defects was in something reviewed, frozen, and
-never executed. `Phase3_Entry_Checklist.md` item 5 therefore says the first thing to write is
-the contract test, not the provider. This is that test, and it ran before any provider code
-existed.
+never executed. `Phase3_Entry_Checklist.md` item 5 said the first thing to write is the
+contract test, not the provider — this file, run before any provider code existed, found
+four disagreements between contracts that ADR-0037's Consequences had flagged as the open
+class: *"a schema's prose and its examples can disagree, and nothing notices"*, one level up,
+between two schemas rather than within one.
+
+ADR-0039 (accepted 2026-09-02) fixed all four by `$ref`, so one contract is now the single
+source for each concept: `core/v1/health-status.schema.json` for HealthStatus,
+`cancellation.schema.json#/properties/token_id` for a cancellation token,
+`tool-spec.schema.json#/properties/name` for a tool name, and `stream-event.schema.json`'s
+`StopReasonValues` for a stop reason. This file now pins that coherence — the same shape
+ADR-0037's own pinning test took: `test_a_redacted_record_still_validates` inverted into
+`test_a_tombstone_validates` on acceptance. The four tests below are that inversion.
 
 WHAT A GATE CANNOT SEE, AND THIS CAN
     `jsonschema` (JSON-004) validates each schema against its metaschema and each schema's
-    own examples. It never compares two schemas to each other. Every finding pinned below is
-    a pair of contracts describing one concept and disagreeing — which is precisely the
-    class ADR-0037's Consequences left open: *"A schema's prose and its examples can
-    disagree, and nothing notices."* One level up, so can two schemas.
+    own examples. It never compares two schemas to each other, so two independently correct
+    schemas that describe one concept differently pass every existing gate. This file is the
+    comparison.
 
-WHY THESE TESTS ASSERT THE DEFECT RATHER THAN THE FIX
-    Editing any of these schemas moves a stable surface inside the checksum set, which
-    `Architecture_Freeze.md` §4 reserves to Efe. ADR-0037 practised exactly this: it pinned
-    the broken behaviour with a test that said, in its assertion message, that a change in
-    the result means the schema moved and needs a decision. On acceptance the test inverts.
-    A red test in the suite would be a worse record of the same fact.
+CROSS-FILE $REFS NEED A REGISTRY
+    ADR-0039 introduced `$ref`s that cross file boundaries (a provider-request field into
+    `cancellation.schema.json`, `tool-spec.schema.json`, and `stream-event.schema.json` into
+    each other). `validator_for` below builds an offline registry exactly the way
+    `test_memory_contract.py` does: nothing is fetched, the `https://lionel.local/...` URIs
+    are identifiers, and the store maps them onto files on disk. ADR-0007's guarantee would
+    be a lie if this suite needed the network to check the offline configuration.
 """
 import json
 import sys
@@ -43,18 +53,37 @@ try:
 except ImportError:  # pragma: no cover - 3.11+ per pyproject
     tomllib = None
 
-EVENTS = ROOT / "contracts" / "events" / "v1"
-CORE = ROOT / "contracts" / "core" / "v1"
+CONTRACTS = ROOT / "contracts"
+EVENTS = CONTRACTS / "events" / "v1"
+CORE = CONTRACTS / "core" / "v1"
 
 
 def load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _registry_arg(schema):
+    store = {}
+    for p in CONTRACTS.rglob("*.schema.json"):
+        doc = load(p)
+        if "$id" in doc:
+            store[doc["$id"]] = doc
+    try:
+        from referencing import Registry, Resource
+        registry = Registry().with_resources(
+            [(uri, Resource.from_contents(doc)) for uri, doc in store.items()])
+        return {"registry": registry}
+    except ImportError:
+        return {"resolver": jsonschema.RefResolver(base_uri="", referrer=schema, store=store)}
+
+
+def validator_for(schema: dict):
+    cls = jsonschema.validators.validator_for(schema, default=jsonschema.Draft202012Validator)
+    return cls(schema, **_registry_arg(schema))
+
+
 def valid(schema: dict, instance) -> bool:
-    """Self-contained fragments only. Nothing here crosses a `$ref` to another file, so no
-    resolver is needed and ADR-0007's offline guarantee is not quietly leaned on."""
-    return jsonschema.Draft202012Validator(schema).is_valid(instance)
+    return validator_for(schema).is_valid(instance)
 
 
 class BrainContracts(unittest.TestCase):
@@ -107,143 +136,146 @@ class TestTheContractsAgreeWhereTheyShould(BrainContracts):
             "https://lionel.local/contracts/events/v1/tool-spec.schema.json",
             self.request["properties"]["tools"]["items"]["$ref"])
 
-    def test_stop_reason_is_duplicated_and_still_identical(self):
-        """Two verbatim copies of one enum, with no `$ref` between them. They agree today.
-        This test exists because nothing else would notice the day they stop — adding
-        `refusal` to one of them is a one-line change that reads as complete."""
-        self.assertEqual(self.stream["$defs"]["StopReason"]["enum"],
-                         self.response["properties"]["stop_reason"]["enum"],
-                         "StreamEvent.StopReason and ProviderResponse.stop_reason have "
-                         "drifted. They are copies, not references.")
-
 
 @unittest.skipIf(jsonschema is None, "jsonschema not installed (pyproject `ci` extra)")
-class TestHealthStatusIsDescribedTwice(BrainContracts):
-    """**No object can satisfy both HealthStatus contracts.**
-
-    `contracts/core/v1/health-status.schema.json` calls itself the *"uniform health report
-    for every service and provider"*, names `brain_gateway` in its own producer list,
-    requires `service`, and sets `additionalProperties: false`.
-    `provider-capabilities.schema.json` defines a second `HealthStatus` in `$defs` with no
-    `service` field and `additionalProperties: false`.
-
-    So the core schema rejects a provider's health report for omitting `service`, and the
-    provider schema rejects the same report for including it. Phase 3's DoD clause —
-    *"`health()` correctly reports not ready while Ollama loads a model"* — cannot be
-    written until one of them wins.
+class TestHealthStatusIsOneContractNow(BrainContracts):
+    """**ADR-0039 item 1, inverted.** `provider-capabilities.$defs.HealthStatus` was a
+    second, incompatible definition of the health report — `additionalProperties: false`
+    with no `service` field, next to a core schema that required one. No object could
+    satisfy both. It is now a `$ref` to `core/v1/health-status.schema.json`, so there is one
+    HealthStatus, and Phase 3's `health()` DoD clause has a shape to return.
     """
 
     def setUp(self):
-        self.hs = self.caps["$defs"]["HealthStatus"]
-        self.report = {"live": True, "ready": False, "state": "loading",
-                       "checked_at": "2026-09-02T06:00:00Z", "load_progress": 0.4}
+        self.report = {"service": "brain_gateway", "live": True, "ready": False,
+                       "state": "loading", "checked_at": "2026-09-02T06:00:00Z",
+                       "load_progress": 0.4}
 
     def test_the_core_schema_claims_the_brain_gateway_as_a_producer(self):
-        """This is what makes it a contradiction rather than two unrelated shapes."""
+        """What makes the two definitions the same concept rather than unrelated shapes."""
         self.assertIn("brain_gateway", self.core_health["x-lionel"]["producer"])
 
-    def test_a_report_the_provider_schema_accepts_is_rejected_by_the_core_schema(self):
-        self.assertTrue(valid(self.hs, self.report))
-        self.assertFalse(
-            valid(self.core_health, self.report),
-            "The core HealthStatus now accepts a report with no `service`. That is a "
-            "schema change to a stable surface — see ADR-0039 and Architecture_Freeze §4.")
+    def test_provider_capabilities_health_status_refs_the_core_schema(self):
+        ref = self.caps["$defs"]["HealthStatus"].get("$ref")
+        self.assertEqual(
+            "https://lionel.local/contracts/core/v1/health-status.schema.json", ref,
+            "provider-capabilities.$defs.HealthStatus is no longer a $ref to the core "
+            "schema. If a second inline definition was reintroduced, ADR-0039 item 1 has "
+            "regressed.")
 
-    def test_a_report_the_core_schema_accepts_is_rejected_by_the_provider_schema(self):
-        with_service = dict(self.report, service="brain_gateway")
-        self.assertTrue(valid(self.core_health, with_service))
-        self.assertFalse(
-            valid(self.hs, with_service),
-            "ProviderCapabilities.HealthStatus now accepts `service`. If that was "
-            "intended, the two definitions should be one `$ref` rather than two objects.")
+    def test_a_core_shaped_report_satisfies_both(self):
+        self.assertTrue(valid(self.core_health, self.report))
+        self.assertTrue(valid(self.caps["$defs"]["HealthStatus"], self.report),
+                        "provider-capabilities.HealthStatus rejects a report the core "
+                        "schema accepts — they are supposed to be the same schema now.")
 
-    def test_the_two_state_enums_differ(self):
-        core = set(self.core_health["properties"]["state"]["enum"])
-        prov = set(self.hs["properties"]["state"]["enum"])
-        self.assertEqual({"starting", "shutting_down"}, core - prov,
-                         "The state enums have moved. A provider that reports `starting` "
-                         "is unrepresentable in the provider schema and fine in the core "
-                         "one, which is the drift this pins.")
-        self.assertEqual(set(), prov - core)
+    def test_starting_and_shutting_down_are_valid_through_either_name(self):
+        for state in ("starting", "shutting_down"):
+            with self.subTest(state=state):
+                report = dict(self.report, state=state)
+                self.assertTrue(valid(self.core_health, report))
+                self.assertTrue(valid(self.caps["$defs"]["HealthStatus"], report),
+                                f"`{state}` is valid in the core schema and not reachable "
+                                f"through provider-capabilities' HealthStatus — the two "
+                                f"state enums have drifted apart again.")
 
 
 @unittest.skipIf(jsonschema is None, "jsonschema not installed (pyproject `ci` extra)")
-class TestUsageIsDescribedTwice(BrainContracts):
-    """`token_counts_estimated` exists on the terminal usage and not on the streamed one.
-
-    Both objects are `additionalProperties: false`, so this is not a widening — a `usage`
-    StreamEvent carrying the flag is invalid. And the mid-stream event is exactly where it
-    is needed: ADR-0009's ceiling **halts generation**, so the guard runs while tokens are
-    still being produced. The flag's own description says the guard *"applies a safety
-    margin rather than trusting the number"* — at the one point where it cannot read it.
+class TestUsageCanSayTheCountsAreEstimatedInBothPlaces(BrainContracts):
+    """**ADR-0039 item 2, inverted.** `token_counts_estimated` existed only on the terminal
+    `ProviderResponse.usage` and not on `StreamEvent.$defs.Usage`, both
+    `additionalProperties: false` — so the flag telling the quota guard not to trust the
+    number was unavailable at the one point (mid-stream) where the guard, which *halts
+    generation*, actually runs. It is now on both.
     """
 
     def setUp(self):
         self.stream_usage = self.stream["$defs"]["Usage"]
         self.response_usage = self.response["properties"]["usage"]
 
-    def test_the_response_can_say_the_counts_are_estimated_and_the_stream_cannot(self):
+    def test_a_streamed_usage_event_can_say_the_counts_are_estimated(self):
         counted = {"input_tokens": 100, "output_tokens": 50, "token_counts_estimated": True}
         self.assertTrue(valid(self.response_usage, counted))
-        self.assertFalse(
-            valid(self.stream_usage, counted),
-            "StreamEvent.Usage now accepts `token_counts_estimated`. If the schema moved, "
-            "ADR-0039's first item is discharged and this test should invert.")
+        self.assertTrue(valid(self.stream_usage, counted),
+                        "StreamEvent.Usage rejects token_counts_estimated again — the quota "
+                        "guard has nothing to read mid-stream, which is ADR-0039 item 2's "
+                        "whole point.")
 
-    def test_the_two_objects_otherwise_carry_the_same_fields(self):
-        """Pinned so the gap stays exactly one field. Two of anything drift by more than
-        one field the moment nobody is comparing them."""
+    def test_the_two_usage_objects_now_carry_the_same_fields(self):
         stream_fields = set(self.stream_usage["properties"])
         response_fields = set(self.response_usage["properties"])
-        self.assertEqual({"token_counts_estimated"}, response_fields - stream_fields)
-        self.assertEqual(set(), stream_fields - response_fields)
+        self.assertEqual(response_fields, stream_fields,
+                         "StreamEvent.Usage and ProviderResponse.usage have different "
+                         "fields again. ADR-0039 made them identical; anything not "
+                         "reachable on both was the exact gap it closed.")
 
 
 @unittest.skipIf(jsonschema is None, "jsonschema not installed (pyproject `ci` extra)")
-class TestIdentifiersArePinnedInOnePlaceAndNotTheOther(BrainContracts):
-    """The G2 defect shape, arriving in a different contract.
-
-    `QdrantBackend` could not store a conforming record because the contract pinned record
-    ids to a ULID and Qdrant accepts an integer or a UUID — an id whose shape was decided in
-    one place and not honoured in the other. Both cases below are the same thing one step
-    earlier: an identifier constrained where it is defined and unconstrained where it is
-    used.
+class TestIdentifiersArePinnedInOnePlaceOnly(BrainContracts):
+    """**ADR-0039 items 3 and 4, inverted.** Both were the G2 defect shape one step earlier:
+    `QdrantBackend` could not store a conforming record because ids were pinned in the
+    contract and unpinned in the adapter. Here two brain contracts named an identifier
+    without carrying the constraint that defines it. Both now `$ref` the defining schema
+    instead of re-typing `string`.
     """
 
-    def test_a_cancellation_token_id_is_a_ulid_in_one_schema_and_any_string_in_the_other(self):
-        """`cancellation.schema.json` pins `token_id` to a ULID. `ProviderRequest`
-        requires `cancellation_token_id`, calls it *"Non-optional"* in its description, and
-        types it `string` — so the empty string satisfies it, and ADR-0025's 200 ms
-        cancellation clause has nothing to look the token up by."""
-        token = self.cancellation["properties"]["token_id"]
-        self.assertEqual("^[0-9A-HJKMNP-TV-Z]{26}$", token["pattern"])
-
+    def test_the_request_cancellation_token_id_refs_the_cancellation_schema(self):
+        """`cancellation.schema.json` pins `token_id` to a ULID; `ProviderRequest` called
+        its copy `string` with no pattern, so the empty string satisfied ADR-0025's
+        "Non-optional" cancellation token. It now refs the definition directly."""
         field = self.request["properties"]["cancellation_token_id"]
-        self.assertNotIn("pattern", field,
-                         "ProviderRequest.cancellation_token_id now carries a pattern — "
-                         "ADR-0039's third item is discharged and this test should invert.")
-        self.assertTrue(valid(field, ""),
-                        "the empty string is currently a valid cancellation token id")
+        self.assertEqual(
+            "https://lionel.local/contracts/events/v1/cancellation.schema.json#/properties/token_id",
+            field.get("$ref"))
+        self.assertFalse(valid(field, ""),
+                         "the empty string is still a valid cancellation token id")
+        self.assertTrue(valid(field, "01JQ4XB2M5N8P1QRST2VWX3YZA"))
 
-    def test_a_tool_name_is_pinned_in_tool_spec_and_free_everywhere_it_is_reported(self):
-        """`ToolSpec.name` is `<capability>.<operation>`, lowercase by construction, and its
-        description says why: ADR-0023, where `.lower()` under a Turkish locale maps `I` to
-        dotless `ı` and silently breaks comparison. `ToolCallDelta.name` and
-        `ProviderResponse.tool_calls[].name` name the same tool and constrain nothing."""
-        spec_name = self.tool_spec["properties"]["name"]
-        self.assertEqual("^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$", spec_name["pattern"])
-        self.assertFalse(valid(spec_name, "İSTANBUL.read"))
-
+    def test_reported_tool_names_ref_tool_specs_pattern(self):
+        """`ToolSpec.name` is `<capability>.<operation>`, lowercase by construction, citing
+        ADR-0023: naive `.lower()` under a Turkish locale maps `I` to dotless `ı` and
+        silently breaks comparison. `ToolCallDelta.name` and
+        `ProviderResponse.tool_calls[].name` name the same tool and used to constrain
+        nothing — `İSTANBUL.read` validated in both. It no longer does."""
+        expected_ref = "https://lionel.local/contracts/events/v1/tool-spec.schema.json#/properties/name"
         delta_name = self.stream["$defs"]["ToolCallDelta"]["properties"]["name"]
         call_name = self.response["properties"]["tool_calls"]["items"]["properties"]["name"]
         for where, field in (("StreamEvent.ToolCallDelta", delta_name),
                              ("ProviderResponse.tool_calls", call_name)):
             with self.subTest(schema=where):
-                self.assertNotIn("pattern", field,
-                                 f"{where}.name now carries a pattern — ADR-0039's fourth "
-                                 f"item is discharged and this test should invert.")
-                self.assertTrue(valid(field, "İSTANBUL.read"),
-                                f"{where} currently accepts a tool name ToolSpec forbids")
+                self.assertEqual(expected_ref, field.get("$ref"),
+                                 f"{where}.name no longer refs ToolSpec.name")
+                self.assertFalse(valid(field, "İSTANBUL.read"),
+                                 f"{where} still accepts a tool name ToolSpec forbids")
+                self.assertTrue(valid(field, "fs.read"))
+
+
+@unittest.skipIf(jsonschema is None, "jsonschema not installed (pyproject `ci` extra)")
+class TestStopReasonIsOneEnumNow(BrainContracts):
+    """**ADR-0039 item 5, inverted.** `StreamEvent.$defs.StopReason` and
+    `ProviderResponse.stop_reason` were two verbatim copies of one enum with no `$ref`
+    between them — identical the day this was written, and nothing would have noticed the
+    day they stopped being identical. Both now resolve to `StreamEvent.$defs.StopReasonValues`.
+    """
+
+    def test_stream_event_stop_reason_resolves_to_stop_reason_values(self):
+        self.assertEqual(
+            "https://lionel.local/contracts/events/v1/stream-event.schema.json#/$defs/StopReasonValues",
+            self.stream["$defs"]["StopReason"].get("$ref"))
+
+    def test_provider_response_stop_reason_refs_the_same_definition(self):
+        self.assertEqual(
+            "https://lionel.local/contracts/events/v1/stream-event.schema.json#/$defs/StopReasonValues",
+            self.response["properties"]["stop_reason"].get("$ref"))
+
+    def test_both_accept_every_value_and_reject_an_unknown_one(self):
+        values = self.stream["$defs"]["StopReasonValues"]["enum"]
+        for value in values:
+            with self.subTest(value=value):
+                self.assertTrue(valid(self.stream["$defs"]["StopReason"], value))
+                self.assertTrue(valid(self.response["properties"]["stop_reason"], value))
+        self.assertFalse(valid(self.stream["$defs"]["StopReason"], "refusal"))
+        self.assertFalse(valid(self.response["properties"]["stop_reason"], "refusal"))
 
 
 if __name__ == "__main__":

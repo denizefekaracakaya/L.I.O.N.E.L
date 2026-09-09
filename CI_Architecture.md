@@ -214,7 +214,7 @@ self-test surfaced.
 ## 8. Current state
 
 ```
-22 pass · 0 fail · 0 broken          self-test 32/32 · gate coverage 23/23
+22 pass · 0 fail · 0 broken          self-test 33/33 · gate coverage 23/23
 ```
 
 Architecture 1.4.0. The `artifacts` gate was red by design through Phase 0 while one image

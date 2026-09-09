@@ -68,15 +68,16 @@ into the Memory Service on merge so `memory.recall` surfaces them months later.
 | [0036](ADR-0036-memory-client-and-embedding-runtime.md) | The Memory Service's vector client and embedding runtime | Accepted | 0 |
 | [0037](ADR-0037-tombstone-record-shape.md) | A tombstone is a MemoryRecord, and the contract has no shape for one | Accepted | 0 |
 | [0038](ADR-0038-memory-backup-and-restore.md) | Memory has a second copy, and the restore is exercised rather than assumed | Accepted | 2 |
-| [0039](ADR-0039-brain-contract-coherence.md) | Four brain contracts describe one thing twice, and Phase 3 is the first consumer | **Proposed** | 3 |
+| [0039](ADR-0039-brain-contract-coherence.md) | Four brain contracts describe one thing twice, and Phase 3 is the first consumer | Accepted | 3 |
 
-**1 ADR pending: ADR-0039.** Drafted 2026-09-02 against the five brain contracts, none of
-which had ever had a consumer. `tests/contract/test_brain_contract.py` exists now and pins
-the four disagreements it found — two HealthStatus definitions no object can satisfy at
-once, a streamed `Usage` that cannot say the token counts are estimated, a cancellation
-token that is a ULID in one contract and any string in the other, and a tool name pinned
-where it is declared and free where it is reported. **No schema is edited while it is
-`Proposed`**; the four pinning tests are what inverts on acceptance.
+**0 ADRs pending.** ADR-0039 was accepted 2026-09-02 and implemented in the same version
+(architecture 1.21.0): all five brain contracts move to 1.1.0, `HealthStatus` is one
+definition rather than two, a cancellation token and a reported tool name are each
+constrained by `$ref` to the one schema that defines them, and the two `StopReason` copies
+became one. `test_brain_contract.py`'s four defect-pinning tests inverted into four
+coherence-pinning test classes, and the file gained the offline `$ref` registry
+`test_memory_contract.py` had already solved. Its Erratum records that the cross-file refs
+needed that registry the first time the tests were re-run.
 
 ADR-0038 was accepted 2026-09-01 and implemented in the same version
 (architecture 1.18.0): `scripts/memory_backup.sh` and `scripts/_memory_snapshot.py` exist,

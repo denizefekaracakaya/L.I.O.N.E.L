@@ -5,8 +5,8 @@
   "description": "The provider-neutral input to a BrainProvider (ADR-0009). TurnExecutor builds one of these; each adapter translates it at the edge into Anthropic messages, an OpenAI-shaped payload, or an Ollama request. Nothing above the adapter ever constructs a vendor-shaped body.",
 
   "x-lionel": {
-    "version": "1.0.0",
-    "adr": ["ADR-0001", "ADR-0009", "ADR-0025"],
+    "version": "1.1.0",
+    "adr": ["ADR-0001", "ADR-0009", "ADR-0025", "ADR-0039"],
     "stability": "stable",
     "plane": "internal",
     "owner": "brain",
@@ -14,7 +14,7 @@
     "consumers": ["brain_gateway", "anthropic_provider", "ollama_provider", "llamacpp_provider"],
     "compatibility": {
       "since": "1.0.0",
-      "breaking_changes": [],
+      "breaking_changes": ["1.1.0 (ADR-0039): cancellation_token_id now constrains to cancellation.schema.json's ULID pattern rather than accepting any string, including the empty one. Nothing in the repository produces a ProviderRequest yet, so nothing migrates."],
       "notes": "`cancellation_token_id` is REQUIRED, not optional. ADR-0025 is explicit that optional cancellation is cancellation some call sites will omit, and those are exactly the ones that hang during barge-in. Adding a `role` value is MAJOR: adapters map roles onto vendor-specific message types and an unmapped role would be silently dropped, producing a request that looks fine and is missing context."
     }
   },
@@ -39,7 +39,7 @@
       "$ref": "https://lionel.local/contracts/events/v1/tool-spec.schema.json#/$defs/ParameterSchema",
       "description": "Structured-output request. Adapters whose provider lacks native support fall back to prompt-based constraint plus validate-and-retry, and MUST report that via ProviderCapabilities rather than silently degrading."
     },
-    "cancellation_token_id": { "type": "string", "description": "ADR-0025. Non-optional." },
+    "cancellation_token_id": { "$ref": "https://lionel.local/contracts/events/v1/cancellation.schema.json#/properties/token_id", "description": "ADR-0025. Non-optional. ADR-0039: constrained to the same ULID pattern cancellation.schema.json pins token_id to, so the 200 ms cancellation clause has something to look the token up by." },
     "deadline_ms": { "type": ["integer", "null"], "minimum": 1 },
     "language": { "$ref": "https://lionel.local/contracts/core/v1/event.schema.json#/$defs/Language" },
     "trust_level": {

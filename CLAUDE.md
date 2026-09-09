@@ -87,7 +87,7 @@ it — no fixed point to chase. Record it **last**.
 ```bash
 bash ci/run_gates.sh                    # 23/23, 0 broken
 bash ci/run_gates.sh <gate>             # one gate
-bash ci/self_test.sh                    # 32/32 assertions, 23/23 gates covered
+bash ci/self_test.sh                    # 33/33 assertions, 23/23 gates covered
 python3 scripts/architecture_checksum.py --verify
 python3 scripts/generate_ci_docs.py --check
 bash scripts/check_env.sh               # the host, not the repository

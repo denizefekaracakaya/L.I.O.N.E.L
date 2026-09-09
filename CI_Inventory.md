@@ -12,7 +12,7 @@
 | Workflow jobs | **27** |
 | Current state | **all gates pass · 0 broken** |
 | Runner | `bash ci/run_gates.sh [gate]` |
-| Self-test | `bash ci/self_test.sh` — 32/32 planted violations caught |
+| Self-test | `bash ci/self_test.sh` — 33/33 planted violations caught |
 | Runtime code | **9 files** under `src/lionel/` |
 
 ---
@@ -104,7 +104,7 @@ Which decisions have an executable test, and which do not.
 | Job | Type | Notes |
 |---|---|---|
 | 23 policy gates | one per gate | **No `needs:` between them.** Independent by design |
-| `gate-self-test` | meta | Plants 32 known violations, asserts each is caught |
+| `gate-self-test` | meta | Plants 33 known violations, asserts each is caught |
 | `l0-conformance` | blocking | `needs: [structure, contracts, architecture]`. ADR-0007 |
 | `checksum` · `generated-docs` · `gate-coverage` | **meta** | Check the pipeline, not the repository. ADR-0030 |
 | `windows-policy-gates` | platform | `windows-latest` under Git Bash. ADR-0002, ADR-0014 |
@@ -148,6 +148,7 @@ A gate that passes a clean repository but would miss a real violation is decorat
 | an example that fails its own schema | `jsonschema` | JSON-004 |
 | a policy rule that neither decides nor constrains | `jsonschema` | JSON-004 |
 | a live memory record with empty text | `jsonschema` | JSON-004 |
+| a usage StreamEvent example the schema no longer describes | `jsonschema` | JSON-004 |
 | a .proto that does not compile | `protobuf` | PROTO-001 |
 | an unresolved artifact in the lockfile | `artifacts` | ART-000 |
 | a tagged image with no digest | `docker-digests` | DOCKER-006 |
@@ -161,7 +162,7 @@ A gate that passes a clean repository but would miss a real violation is decorat
 | a quoted config block that differs from the file by one line | `doc-quotes` | QUOTE-001 |
 | a forbidden package installed transitively | `dependencies` | DEP-003 |
 
-**32/32 caught.**
+**33/33 caught.**
 
 ---
 

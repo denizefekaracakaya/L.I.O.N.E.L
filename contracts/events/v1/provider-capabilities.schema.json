@@ -4,10 +4,11 @@
   "title": "ProviderCapabilities and HealthStatus",
   "description": "What a BrainProvider declares about itself (ADR-0009). Callers branch on these flags, NEVER on provider name — that rule is what makes ADR-0001's provider independence real rather than nominal, and a static check enforces it.",
   "x-lionel": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "adr": [
       "ADR-0009",
-      "ADR-0001"
+      "ADR-0001",
+      "ADR-0039"
     ],
     "stability": "stable",
     "plane": "internal",
@@ -25,7 +26,9 @@
     ],
     "compatibility": {
       "since": "1.0.0",
-      "breaking_changes": [],
+      "breaking_changes": [
+        "1.1.0 (ADR-0039): $defs.HealthStatus is now a $ref to contracts/core/v1/health-status.schema.json rather than a second, incompatible definition. That schema requires `service`, which this one previously forbade, and its `state` enum adds `starting` and `shutting_down`. Breaking in principle; nothing in the repository produced a HealthStatus before this version, so nothing migrates."
+      ],
       "notes": "Adding an optional capability flag is MINOR, but every new flag needs a documented default for providers that predate it, and the default must be the CONSERVATIVE value (false / unsupported). A flag defaulting to true would make an old adapter claim a capability it lacks."
     }
   },
@@ -145,62 +148,8 @@
   "additionalProperties": false,
   "$defs": {
     "HealthStatus": {
-      "title": "HealthStatus",
-      "description": "Liveness and readiness are DISTINCT. Ollama loading a 30 GB model is alive and not ready; routing a turn to it produces a timeout that looks like a broken assistant.",
-      "type": "object",
-      "required": [
-        "live",
-        "ready",
-        "checked_at"
-      ],
-      "properties": {
-        "live": {
-          "type": "boolean",
-          "description": "The process/endpoint responds at all."
-        },
-        "ready": {
-          "type": "boolean",
-          "description": "Can accept a turn RIGHT NOW. False during model load, warmup, or quota halt."
-        },
-        "checked_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "loading",
-            "warming",
-            "degraded",
-            "quota_exceeded",
-            "unreachable",
-            "error"
-          ]
-        },
-        "detail": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "load_progress": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0,
-          "maximum": 1
-        },
-        "latency_ms": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false
+      "$comment": "ADR-0039 item 1. This used to be a second, incompatible definition of HealthStatus — no object could satisfy both it and contracts/core/v1/health-status.schema.json, which names brain_gateway as a producer and calls itself the uniform report for every service and provider. It wins; this is now only a stable name for it.",
+      "$ref": "https://lionel.local/contracts/core/v1/health-status.schema.json"
     }
   },
   "examples": [

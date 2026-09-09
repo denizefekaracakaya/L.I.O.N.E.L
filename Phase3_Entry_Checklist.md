@@ -8,7 +8,7 @@ Phase 3 — Brain Gateway & Provider Abstraction, gate **G3**.
 | Gate | G2 → G3 |
 | Status | **OPEN** — G2 signed 2026-09-02; item 1 cleared, the rest are Phase 3 work |
 | Items | 8 |
-| Done | **1 of 8** |
+| Done | **2 of 8** |
 | Blocking | 0 |
 
 **This document states no counts about the pipeline.** `Phase1_Entry_Checklist.md` is out of
@@ -110,7 +110,7 @@ is the first time a provider that needs egress becomes reachable from the turn p
 
 ## PERMITTED WITHOUT AN ADR — work, and item 1 has cleared
 
-### ◐ 5. `src/lionel/brain/` against the frozen contracts — **contract test done 2026-09-02, and it found four defects**
+### ◐ 5. `src/lionel/brain/` against the frozen contracts — **contract test done 2026-09-02, four defects found and fixed**
 
 The contracts Phase 3 builds to are already frozen and inside the checksum set:
 `tool-spec`, `stream-event`, `provider-request`, `provider-response`,
@@ -132,11 +132,13 @@ existed. **Twelve assertions, four of them pinning a defect:**
 | `cancellation_token_id` | a ULID where it is defined, any string where it is required. `""` validates |
 | a reported tool name | unconstrained in both places it comes back, while `ToolSpec.name` pins it and cites ADR-0023 for why |
 
-**ADR-0039 records all four and is `Proposed`** — every one of them is a `stability: stable`
-schema inside the checksum set, so §4 reserves the edit to Efe. The schemas are untouched
-while it waits; the four tests are what inverts on acceptance. Writing the provider against
-contracts that contradict each other is the thing this item exists to prevent, so **item 5
-does not continue until ADR-0039 is decided.**
+**ADR-0039 recorded all four and Efe accepted it 2026-09-02**, the day it was drafted — every
+one of them was a `stability: stable` schema inside the checksum set, so §4 reserved the edit
+to him. All five contracts are now 1.1.0: `HealthStatus` is one definition, a cancellation
+token and a reported tool name are each constrained by `$ref` to the schema that defines
+them, and the two `StopReason` copies became one. The four tests inverted into four
+coherence-pinning classes. **Item 5 is unblocked; `src/lionel/brain/` may be written against
+contracts that no longer contradict each other.**
 
 ### ☐ 6. The static check that no caller branches on provider name
 
@@ -153,8 +155,9 @@ ADR-0025 sets the budget and names G3 as its gate. Both clauses are timing facts
 running model on a host — `health()` must report not-ready *while Ollama loads a model*,
 which cannot be observed on a CI runner that has no Ollama.
 
-**Blocked on ADR-0039 item 1** until then: there are two `HealthStatus` contracts and no
-object satisfies both, so there is no shape for `health()` to return.
+**Unblocked 2026-09-02.** ADR-0039 item 1 made `HealthStatus` one definition —
+`provider-capabilities.$defs.HealthStatus` now refs `core/v1/health-status.schema.json` —
+so `health()` has a shape to return.
 
 This is the third instance of the same shape, so it should look like the first two rather
 than being invented again: `scripts/verify_memory.sh` and `scripts/check_env.sh` are host

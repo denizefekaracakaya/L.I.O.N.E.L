@@ -307,6 +307,28 @@ PLANT
 expect_violation jsonschema "JSON-004" "a live memory record with empty text"
 unplant "$MR_SCHEMA" "$MR_BAK"
 
+# 12d. ADR-0039: a planted `usage` StreamEvent example carries `token_counts_estimated`
+#      (added to the real example on acceptance, since the quota guard reads it mid-stream,
+#      not from the terminal ProviderResponse). The plant removes the field from
+#      $defs.Usage.properties again -- reverting one file to its pre-ADR-0039 shape while
+#      leaving the example untouched -- which is what "the schema and its example disagree"
+#      looks like from this side, the same defect ADR-0037 closed one level down.
+SE_SCHEMA="contracts/events/v1/stream-event.schema.json"
+SE_BAK="$(plant_in "$SE_SCHEMA")"
+python3 - "$SE_SCHEMA" <<'PLANT'
+import io, json, sys
+p = sys.argv[1]
+with io.open(p, encoding="utf-8", newline="") as f:
+    d = json.loads(f.read())
+del d["$defs"]["Usage"]["properties"]["token_counts_estimated"]
+with io.open(p, "w", encoding="utf-8", newline="") as f:
+    # chr(10), not a backslash escape. This block is written into a heredoc, and a
+    # backslash-n here becomes a real newline before python ever sees it.
+    f.write(json.dumps(d, indent=2, ensure_ascii=False) + chr(10))
+PLANT
+expect_violation jsonschema "JSON-004" "a usage StreamEvent example the schema no longer describes"
+unplant "$SE_SCHEMA" "$SE_BAK"
+
 # 13. Protobuf must compile. A .proto that does not is a data plane that does not exist.
 cat > contracts/grpc/v1/_selftest.proto <<'PROTO'
 syntax = "proto3";
