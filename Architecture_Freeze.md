@@ -2,19 +2,26 @@
 
 | | |
 |---|---|
-| Architecture version | **1.21.0** |
+| Architecture version | **1.23.0** |
 | Freeze date | **2026-08-10** |
-| Tag | **`architecture-1.21.0`** |
+| Tag | **`architecture-1.23.0`** |
 | Status | **FROZEN** — G2 signed 2026-09-02, Phase 3 open, ADR-0039 in force; the freeze governs the architecture, not the code written against it |
-| Previous versions | **1.20.0**, **1.19.0**, **1.18.0**, **1.17.1**, **1.17.0**, **1.16.0**, **1.15.0**, **1.14.0**, **1.13.0**, **1.12.1**, **1.12.0**, **1.11.0**, **1.10.0**, **1.9.1**, **1.9.0**, **1.8.0**, **1.7.0**, **1.6.0**, **1.5.0**, **1.4.0**, **1.3.0**, **1.2.0**, **1.1.1**, **1.1.0**, **1.0.0** — all tagged, all unchanged and still valid |
-| Governance | **0 ADRs pending.** ADR-0039 accepted 2026-09-02 and in force |
+| Previous versions | **1.22.0**, **1.21.0**, **1.20.0**, **1.19.0**, **1.18.0**, **1.17.1**, **1.17.0**, **1.16.0**, **1.15.0**, **1.14.0**, **1.13.0**, **1.12.1**, **1.12.0**, **1.11.0**, **1.10.0**, **1.9.1**, **1.9.0**, **1.8.0**, **1.7.0**, **1.6.0**, **1.5.0**, **1.4.0**, **1.3.0**, **1.2.0**, **1.1.1**, **1.1.0**, **1.0.0** — all tagged, all unchanged and still valid |
+| Governance | **0 ADRs pending.** ADR-0040 and ADR-0041 accepted 2026-09-10 and in force |
 
 > **In force.** 1.1.0 is additive: it adds three decisions and three gates, and changes no
 > decision already in force. `architecture-1.0.0` is untouched and remains a valid freeze of
 > what it froze. **Clone the tag, not a commit** — §8.3 explains why that distinction
 > matters here.
 >
-> **All 39 ADRs are in force.** ADR-0039 (2026-09-02) was accepted the same day it was
+> **All 41 ADRs are in force.** ADR-0040 and ADR-0041 (2026-09-10) were accepted the same
+> day they were drafted: `anthropic` and `llama-cpp-python` join `pyproject.toml`, `ollama`
+> stays on `httpx`, the `cl` preflight row moves `G6` → `G3`, and `MASTER_PLAN_v2.md`'s
+> `evals/` line now names both arrival dates. Both Erratums are honest that the provider
+> adapters and the golden-transcript harness itself remain unbuilt — real engineering, not a
+> configuration change. §9.31.
+>
+> ADR-0039 (2026-09-02) was accepted the same day it was
 > drafted and implemented in the same version: five brain contracts move to 1.1.0,
 > `HealthStatus` is one definition rather than two, and a cancellation token and a reported
 > tool name are each constrained by `$ref` to the one schema that defines them. Its Erratum
@@ -56,6 +63,16 @@
 ---
 
 ## 1. Architecture version
+
+**1.23.0** — MINOR over 1.22.0: ADR-0040 and ADR-0041 accepted, so two pending decisions
+come into force, which §1 defines as MINOR. `pyproject.toml` gains `anthropic` and
+`llama-cpp-python`; `ci/policy/policy.yaml` gains an `httpx2` transitive exemption the
+resolver surfaced and moves the `cl` preflight row to G3; `MASTER_PLAN_v2.md`'s `evals/`
+line is corrected. §9.31.
+
+**1.22.0** — MINOR over 1.21.0: ADR-0040 and ADR-0041 added, both `Proposed`. No
+decision in force changed, and neither dependency, schema, nor directory either ADR
+names is touched while they wait. §9.30.
 
 **1.21.0** — MINOR over 1.20.0: ADR-0039 accepted, so a pending decision comes into force,
 which §1 defines as MINOR. Five brain contracts move to 1.1.0; `test_brain_contract.py`'s
@@ -185,21 +202,25 @@ Deterministic SHA-256 over the architecture-defining set — sorted paths, path 
 file bytes, grouped, then the group digests concatenated and hashed.
 
 ```
-ARCHITECTURE CHECKSUM                                          architecture 1.21.0
-sha256:8b454522a4f42ed20527a7680589713287b82811756bccca7236140da28b068c
+ARCHITECTURE CHECKSUM                                          architecture 1.23.0
+sha256:853dc1c8d3dd01df583bfcd4fb7233877f4a1bcff25ceb83b116c7f35ec104fa
 
-  ADRs         39 files   sha256:97c0d2cb394cc2f9c5e8f4848b720658…
+  ADRs         41 files   sha256:9530bc0283795aef158f417304551ba5…
   contracts    31 files   sha256:87bba7412e01f620f1e78be02ad9ffc0…
-  policy        8 files   sha256:f67dcb5753c385f7f70163c596b658d8…
+  policy        8 files   sha256:00464378149032441ebf47ecb002090a…
   artifacts     1 file    sha256:fc4d6a69230d0b3b5fb25d3f12b71176…
-  plan          1 file    sha256:fb9f2e57f26eff1fd50854bc96680f7e…
+  plan          1 file    sha256:289414e330c4a752c747e0eb7346609e…
 
-  80 files hashed
+  82 files hashed
 ```
 
 Superseded values, kept so the earlier tags stay verifiable:
 
 ```
+architecture 1.22.0  sha256:f2090e9cc300314ce27528103ed6a8c5368fe40bd5338ee334c90922a2cca724
+                     82 files — ADRs 41 · contracts 31 · policy 8 · artifacts 1 · plan 1
+architecture 1.21.0  sha256:8b454522a4f42ed20527a7680589713287b82811756bccca7236140da28b068c
+                     80 files — ADRs 39 · contracts 31 · policy 8 · artifacts 1 · plan 1
 architecture 1.20.0  sha256:38c9b925aae41422e0758c28866e8bd0124243c83bb8a61ca1c6b789c54ef1fc
                      80 files — ADRs 39 · contracts 31 · policy 8 · artifacts 1 · plan 1
 architecture 1.19.0  sha256:0585d19fc64db1ae63a07415af6acecb86c7db7051ec99f5319b39425736b764
@@ -306,7 +327,7 @@ The following are **frozen** at version 1.0.0. Changing any of them requires an 
 
 | Element | Frozen state |
 |---|---|
-| **Architecture decisions** | **39 ADRs, 0001–0039** — all in force, **0 ADRs pending** |
+| **Architecture decisions** | **41 ADRs, 0001–0041** — all in force, **0 ADRs pending** |
 | **Contracts** | Contract set 1.1.0 — 27 JSON Schemas + 3 protobuf, 5 planes |
 | **Capability registry** | 5 capabilities, each declaring `requires_network`, `offline_allowed`, `owner`, `phase`, `trust_level` |
 | **Artifact lock** | 13 artifacts, all RESOLVED, tiers A=8 B=2 C=2 D=1 |
@@ -1915,6 +1936,87 @@ than joining `HealthStatus`, `Usage` and the rest in having never been consumed.
 MINOR by §1: a pending decision comes into force. `Phase3_Entry_Checklist.md` item 5, which
 had explicitly stopped at ADR-0039's decision, continues; item 7's `health()` clause is
 unblocked. Checksum sha256:8b454522a4f4…, 80 files.
+
+---
+
+### 9.30 Version 1.22.0 — two ADRs for Phase 3's remaining decisions, and a contradiction MASTER_PLAN_v2 had been carrying since Phase 0
+
+`Phase3_Entry_Checklist.md` named three decisions reserved to Efe by §4. ADR-0040 and
+ADR-0041 are drafted against two of them, both `Proposed`.
+
+**ADR-0040 chooses the three `BrainProvider` clients.** `anthropic` (MIT) and
+`llama-cpp-python` (MIT) as new dependencies; `ollama` called over the already-declared
+`httpx` rather than a second HTTP client, which `DEP-002` would otherwise call drift. It
+also closes item 4 by declining to add anything: `l0-conformance` already asserts
+`network_allowed: "false"` and rejects `provider = "anthropic"` at L0
+(`l0_forbidden_providers`), and a credential sitting unread behind `secret://` resolution
+while unused at L0 is inert configuration — the same shape the L0 `fallback_chain` already
+is. No new gate assertion was added; one was considered and rejected in the ADR's own
+Alternatives, on the same "two mechanisms checking one fact drift apart" argument ADR-0039
+made about the brain contracts, one layer down into gates.
+
+**ADR-0041 found that `MASTER_PLAN_v2.md` disagrees with itself.** §10 Phase 3's DoD
+requires the golden-transcript replay gate at G3, in language more emphatic than most of
+that section carries — *"now automated as a regression gate rather than a one-time
+measurement"*. The document's own directory sketch, four hundred lines later, labels the
+directory that gate needs `evals/ ← NEW Phase 8`. Neither line is wrong on its own; they
+contradict each other, the same shape `memory-record.schema.json` had inside one contract
+(ADR-0037), one level up, inside the plan itself.
+
+The resolution does not pick a side. `ADR-0021` had already designed the harness this needs,
+scoped to G8 for good reasons — STT WER, wake FAR/FRR, TTS intelligibility and a persisted
+leaderboard genuinely need G6's audio models. ADR-0041 pulls forward only the slice ADR-0001
+asks for at G3: two text providers, tool-call equivalence, no audio — `evals/golden/` and
+`evals/harness/`, not the full suite. `llamacpp` stays out of the comparison; ADR-0001 never
+named it either, and a golden set measuring the provider whose tool-calling reliability is
+"the project's largest unknown" (that ADR's own words) would be measuring the fixture, not
+the model.
+
+**Both practise the withholding this repository now has ten instances of.** Neither
+dependency, schema, nor directory either ADR names is touched while `Proposed` —
+`pyproject.toml`, `ci/policy/policy.yaml`'s `cl` preflight row, and `MASTER_PLAN_v2.md`'s
+`evals/` line all wait for Efe's approval before moving, exactly as `Architecture_Freeze.md`
+§4 requires.
+
+MINOR by §1: two ADRs added, both `Proposed`. No decision in force changed.
+`docs/decisions/ADR-0040-brain-provider-clients.md`,
+`docs/decisions/ADR-0041-transcript-replay-gate.md` and `ci/policy/policy.yaml` are in the
+checksum set. 82 files.
+
+---
+
+### 9.31 Version 1.23.0 — ADR-0040 and ADR-0041 accepted the same day they were drafted, and a second HTTP client arrived under a different name
+
+Efe accepted both on 2026-09-10. Delivered:
+
+| | |
+|---|---|
+| `pyproject.toml` | `anthropic>=1.4`, `llama-cpp-python>=0.3.35`, each naming ADR-0040 |
+| `uv.lock` | regenerated, 69 packages |
+| `ci/policy/policy.yaml` | the `cl` preflight row's `required_at` moved `G6` → `G3`; `tests/unit/test_preflight.py`'s 27 cases pass unchanged |
+| `MASTER_PLAN_v2.md` | the `evals/` directory-sketch line names both arrival dates and both ADRs, with an `harness/` line added beside `golden/` |
+
+**`uv lock` pulled `httpx2`** — a genuinely separate package, `httpx`'s own in-progress v2
+rewrite published under its own name, not a re-resolution of the `httpx` already declared.
+`anthropic` depends on it directly. `dependencies.forbid_packages` is name-based, so nothing
+caught it: `bash ci/run_gates.sh dependencies` was green with a second, unreviewed HTTP
+client silently in the lock. This is the `requests`-via-`fastembed` finding ADR-0036's
+Erratum recorded (§9.22), one dependency later, and it is now named the same way: `httpx2`
+in `forbid_packages`, a `transitive_exemptions` entry — pulled by `anthropic`, owner
+`brain`, unblocked by `anthropic` moving to `httpx` (v1) or this repository replacing the
+SDK.
+
+**Both Erratums say plainly what is not yet built.** `src/lionel/brain/providers/`'s three
+adapters and `evals/golden/`/`evals/harness/`'s golden-transcript comparison are real
+engineering — translating each SDK's streaming shape into the frozen contracts, then
+recording actual transcripts to replay — not a configuration change, and neither ADR's
+Erratum claims otherwise. `Phase3_Entry_Checklist.md` items 2 and 3 track them as
+continuing; item 4 is fully closed, since ADR-0040 decided no further work was needed there.
+
+MINOR by §1: two pending decisions come into force. `ci/policy/policy.yaml` is the only
+file in the checksum set that changed content (the ADR bodies moved from `Proposed` to
+`Accepted`, which is itself a checksummed change to `docs/decisions/*.md`); `MASTER_PLAN_v2.md`
+changed by one line. Checksum sha256:853dc1c8d3dd…, 82 files.
 
 ---
 

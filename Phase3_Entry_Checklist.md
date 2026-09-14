@@ -1,14 +1,15 @@
 # Phase 3 Entry Checklist
 
-**Decisions and prerequisites only.** No implementation. Phase 3 is `MASTER_PLAN_v2.md` §10
-Phase 3 — Brain Gateway & Provider Abstraction, gate **G3**.
+**Decisions and prerequisites.** Phase 3 is `MASTER_PLAN_v2.md` §10 Phase 3 — Brain Gateway
+& Provider Abstraction, gate **G3**. What started as decisions-only now tracks the
+implementation each accepted decision commits to as well.
 
 | | |
 |---|---|
 | Gate | G2 → G3 |
-| Status | **OPEN** — G2 signed 2026-09-02; item 1 cleared, the rest are Phase 3 work |
+| Status | **OPEN** — all three Efe decisions made (ADR-0040, ADR-0041, item 4); items 2, 3, 5 still have implementation behind their decisions |
 | Items | 8 |
-| Done | **4 of 8** |
+| Done | **4 of 8 fully done (☑), 3 partial (◐)** |
 | Blocking | 0 |
 
 **This document states no counts about the pipeline.** `Phase1_Entry_Checklist.md` is out of
@@ -57,54 +58,74 @@ bash scripts/memory_backup.sh selftest
 
 ---
 
-## NEEDS EFE — decisions, not work. Each is `Architecture_Freeze.md` §4
+## DECIDED — Efe's calls, recorded in ADRs. Two of three still have work behind them
 
-These are the reason this document exists. Phase 3 is the first phase whose implementation
-cannot begin with implementation: three of its six DoD clauses are blocked on a decision
-that §4 reserves, and discovering that mid-phase is how a dependency gets added because it
-was obviously needed.
+These were the reason this document existed. Phase 3 was the first phase whose
+implementation could not begin with implementation: three of its six DoD clauses were
+blocked on a decision `Architecture_Freeze.md` §4 reserves. All three are decided; two
+still have real engineering behind the decision.
 
-### ☐ 2. An ADR for the provider clients
+### ◐ 2. An ADR for the provider clients — **ADR-0040 accepted 2026-09-10; adapters not yet written**
 
-ADR-0001 ships three implementations — `anthropic`, `ollama`, `llamacpp` — and chooses none
-of their Python clients. `pyproject.toml` says so in its own header: *"MASTER_PLAN_v2 names
+ADR-0001 ships three implementations — `anthropic`, `ollama`, `llamacpp` — and chose none
+of their Python clients. `pyproject.toml` said so in its own header: *"MASTER_PLAN_v2 names
 technologies … whose PYTHON CLIENTS are not yet chosen. Those arrive with the phase that
-builds against them."* This is that phase.
+builds against them."* This was that phase.
 
-| Provider | What is already decided | What is not |
-|---|---|---|
-| `ollama` | `httpx>=0.27` is declared, and `DEP-002` names it *the* HTTP client. Ollama's API is HTTP | whether the gateway calls it directly or takes the `ollama` package. A second client for one provider is `DEP-002`'s drift |
-| `anthropic` | nothing | the `anthropic` SDK is a **new dependency**. §4 applies in full |
-| `llamacpp` | nothing | in-process bindings (`llama-cpp-python`, which compiles, and `check_env.sh` already tracks VS Build Tools for exactly this class of package) or its HTTP server. These are different decisions with different offline stories |
+**Decided:** `anthropic>=1.4` and `llama-cpp-python>=0.3.35` (in-process bindings, not the
+HTTP-server shape) as new dependencies, each in `pyproject.toml` naming `ADR-0040`.
+`ollama` is called over the already-declared `httpx` — no second HTTP client, no `ollama`
+package. `ci/policy/policy.yaml`'s `cl` preflight row moved `required_at: G6` → `G3`, since
+`llama-cpp-python` needs the same toolchain `whisper.cpp` does, now three phases earlier.
 
-**ADR-0036 is the shape to copy.** It arrived with the phase that needed it, declared both
-packages directly rather than through an extra, and its Verification withheld the
-`pyproject.toml` edit until acceptance.
+**Found on acceptance:** `uv lock` pulled `httpx2` — a real, separate package (`httpx`'s own
+in-progress v2, published under its own name), not a duplicate of the `httpx` already
+declared. `anthropic` depends on it directly, and `dependencies.forbid_packages` being
+name-based meant nothing caught it — the `requests`-via-`fastembed` finding ADR-0036
+recorded, one dependency later. Now named in `forbid_packages` with a
+`transitive_exemptions` entry, `bash ci/run_gates.sh dependencies` sees it and passes on
+purpose rather than by omission.
 
-### ☐ 3. An ADR for the transcript-replay gate
+**Not done:** `src/lionel/brain/providers/` — three adapters, each translating one SDK's
+shape into `ProviderRequest`/`StreamEvent`/`ProviderResponse`/`ProviderCapabilities`. ADR-0040's
+own Erratum says so plainly rather than claiming delivery: this is real engineering, not a
+configuration change, and it did not happen in the same pass as the dependency additions.
 
-v1.0 required the cross-provider comparison as a one-time measurement. **v2 requires it as a
-regression gate**, and `CI_Architecture.md` §7 step 1 is *ADR first*. The decisions it needs
-are not implementation details:
+### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness not yet written**
 
-- what "the same golden transcript replays correctly" means when two models legitimately
-  emit different prose — the comparison has to be over *tool calls and their arguments*,
-  not over text, or the gate is a flake generator
-- where the transcript lives, and what pins it (ADR-0013 is about artifacts that get
-  replaced quietly)
-- **what CI does when neither provider is reachable.** ADR-0007 is the constraint: a gate
-  that needs the network is a gate that is red on a plane. The honest answer is probably a
-  recorded-response fixture in CI plus a `--live` witness on the host, which is what
-  `check_env.sh` and `verify_memory.sh` both settled on — but it is a decision, and the
-  fixture/live split is precisely where a proof quietly stops proving anything
+v1.0 required the cross-provider comparison as a one-time measurement. v2's DoD requires it
+as a regression gate — and, it turned out, contradicts itself about which phase it belongs
+to: `MASTER_PLAN_v2.md` §10 Phase 3 requires it at G3, while the same document's directory
+sketch, four hundred lines later, had labelled `evals/` `NEW Phase 8`.
 
-### ☐ 4. Decide whether `anthropic` may hold a credential at L0
+**Decided:** a narrow slice of `ADR-0021`'s already-designed harness — `evals/golden/` +
+`evals/harness/`, tool-call equivalence between `anthropic` and `ollama` only — pulled
+forward to G3. Equivalence is over tool calls and parsed arguments, never text. A golden
+case is a pinned artifact (`ADR-0013`'s way), entered in `artifacts.lock.yaml`. CI replays
+against recorded provider responses; a `--live` mode replays against the real providers, on
+the host, opt-in, never in CI — the same shape `check_env.sh` and `verify_memory.sh`
+already have. `ADR-0021`'s full harness (STT WER, wake FAR/FRR, TTS, the leaderboard) stays
+at G8, unchanged. `llamacpp` stays out of the comparison — ADR-0001 never named it, and its
+tool-calling reliability is the thing under study, not a fixture to measure against.
+`MASTER_PLAN_v2.md`'s `evals/` line now names both arrival dates.
+
+**Not done:** `evals/golden/` and `evals/harness/` are still empty, no CI job exists, and
+`check_env.sh` has no `--live` row for it yet. `ADR-0041`'s Erratum is explicit about why it
+comes after item 2's adapters rather than beside them: a golden case is a recorded
+transcript from a real `anthropic`/`ollama` call, and neither adapter exists to record one
+from yet. Building the harness first would be a comparison with nothing on either side.
+
+### ☑ 4. Whether `anthropic` may hold a credential at L0 — **DONE 2026-09-10, no new mechanism**
 
 `lionel.secrets` resolves `secret://` and redacts in logs (ADR-0015), so the mechanism
-exists. The question is the degradation ladder: `[brain] fallback_chain` is
-`["ollama", "llamacpp"]` and the comment beside it reads *"no network deps at L0"*. Phase 3
-is the first time a provider that needs egress becomes reachable from the turn path, and
-`l0-conformance` is the gate that will have an opinion.
+already existed. `ADR-0040` decided that provider-selection enforcement is sufficient:
+`l0-conformance` already asserts `network_allowed: "false"` and rejects
+`provider = "anthropic"` at L0 (`l0_forbidden_providers`), and a credential sitting unread
+behind `secret://` resolution while unused at L0 is inert configuration — the same shape the
+L0 `fallback_chain` already is. A stronger assertion (checking that `secrets.resolve()` is
+never called for an `anthropic`-scoped URI while `tier == l0`) was considered and rejected:
+it would duplicate what selection already guarantees, checking one fact from two places that
+can drift apart. Nothing changed; nothing needs to.
 
 ---
 
@@ -166,9 +187,13 @@ ADR-0025 sets the budget and names G3 as its gate. Both clauses are timing facts
 running model on a host — `health()` must report not-ready *while Ollama loads a model*,
 which cannot be observed on a CI runner that has no Ollama.
 
-**Unblocked 2026-09-02.** ADR-0039 item 1 made `HealthStatus` one definition —
-`provider-capabilities.$defs.HealthStatus` now refs `core/v1/health-status.schema.json` —
-so `health()` has a shape to return.
+**Unblocked in two stages.** ADR-0039 item 1 (2026-09-02) made `HealthStatus` one
+definition — `provider-capabilities.$defs.HealthStatus` now refs
+`core/v1/health-status.schema.json` — so `health()` has a shape to return. ADR-0040
+(2026-09-10) chose `llama-cpp-python`/`anthropic`/`httpx` as the clients, so there is now a
+decision to build against. **Still blocked on item 2's adapters actually being written** —
+`health()` reporting not-ready *while Ollama loads a model* needs the `ollama` adapter to
+exist, and cancellation needs at least one streaming adapter to cancel.
 
 This is the third instance of the same shape, so it should look like the first two rather
 than being invented again: `scripts/verify_memory.sh` and `scripts/check_env.sh` are host

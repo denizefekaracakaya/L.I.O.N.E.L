@@ -69,8 +69,27 @@ into the Memory Service on merge so `memory.recall` surfaces them months later.
 | [0037](ADR-0037-tombstone-record-shape.md) | A tombstone is a MemoryRecord, and the contract has no shape for one | Accepted | 0 |
 | [0038](ADR-0038-memory-backup-and-restore.md) | Memory has a second copy, and the restore is exercised rather than assumed | Accepted | 2 |
 | [0039](ADR-0039-brain-contract-coherence.md) | Four brain contracts describe one thing twice, and Phase 3 is the first consumer | Accepted | 3 |
+| [0040](ADR-0040-brain-provider-clients.md) | The three BrainProvider clients | Accepted | 3 |
+| [0041](ADR-0041-transcript-replay-gate.md) | The golden-transcript replay gate, and the phase plan's contradiction about where it lives | Accepted | 3 |
 
-**0 ADRs pending.** ADR-0039 was accepted 2026-09-02 and implemented in the same version
+**0 ADRs pending.** ADR-0040 and ADR-0041 were accepted 2026-09-10, the day they were
+drafted, and implemented in the same version (architecture 1.23.0). ADR-0040 chose the
+three `BrainProvider` clients — `anthropic>=1.4` and `llama-cpp-python>=0.3.35` as new
+dependencies, `ollama` called over the already-declared `httpx` rather than a second
+HTTP client — and closed the L0-credential question by declining to add a mechanism:
+`l0-conformance` already forbids `provider = "anthropic"` at L0, which is sufficient.
+Its Erratum records what `uv lock` pulled in that the proposal did not predict:
+`httpx2`, `anthropic`'s own transport dependency and a genuinely second HTTP client
+under a different name, now named in `dependencies.forbid_packages` with a
+`transitive_exemptions` entry — the `requests`-via-`fastembed` finding, one dependency
+later. ADR-0041 resolved a contradiction inside `MASTER_PLAN_v2.md` itself: §10 Phase 3's
+DoD requires the golden-transcript replay gate at G3, while the directory sketch four
+hundred lines later had labelled `evals/` `NEW Phase 8`; the sketch now names both dates
+and both ADRs. **Both Erratums are honest about what remains**: the three provider
+adapters and the golden-transcript harness itself are real engineering, not yet built,
+and `Phase3_Entry_Checklist.md` items 2 and 3 track them as continuing.
+
+ADR-0039 was accepted 2026-09-02 and implemented in the same version
 (architecture 1.21.0): all five brain contracts move to 1.1.0, `HealthStatus` is one
 definition rather than two, a cancellation token and a reported tool name are each
 constrained by `$ref` to the one schema that defines them, and the two `StopReason` copies

@@ -71,7 +71,7 @@ repository:
 
 adr:
   dir: docs/decisions
-  expected_count: 39
+  expected_count: 41
   required_sections: ["## Context", "## Decision", "## Consequences", "## Alternatives Rejected", "## Verification"]
   valid_statuses: ["Accepted", "Provisional", "Superseded", "Proposed", "Deprecated"]
   # ── ADR-0029: Errata / Amendments / Corrections ──────────────────────────
@@ -452,6 +452,9 @@ dependencies:
   forbid_packages:
     - name: requests
       why: "httpx is already a dependency. Two HTTP clients is drift, not choice."
+    - name: httpx2
+      why: "httpx is already a dependency. Two HTTP clients is drift, not choice --
+            true whether the second one shares httpx's name or not."
   require_lockfile: uv.lock
   lockfile_required_at: "G1"
   # DEP-003. A forbidden package that arrives as somebody else's dependency is
@@ -472,6 +475,20 @@ dependencies:
         then this is a fact about a vendored library, not a choice this repository
         made -- and DEP-003 fails if fastembed ever leaves the lock while this
         entry stays.
+    - package: httpx2
+      pulled_by: anthropic
+      why: >-
+        anthropic depends on httpx2 directly (httpx's own in-progress v2, published
+        as a separate distribution) for its transport. Nothing in src/lionel/
+        imports it, and nothing may: DEP-002 governs the client this repository's
+        own code calls, and httpx (v1) remains that client. Arrived with ADR-0040
+        at architecture 1.23.0.
+      owner: brain
+      unblocked_by: >-
+        anthropic moving to httpx (v1) or this repository replacing the anthropic
+        SDK. Until then this is a fact about a vendored library, not a choice this
+        repository made -- and DEP-003 fails if anthropic ever leaves the lock
+        while this entry stays.
 
 shell:
   require_strict_mode: true              # set -euo pipefail
@@ -653,11 +670,14 @@ preflight:
       minimum: "19.0"
       probe: "cl"
       extract: '([0-9]+\.[0-9]+(\.[0-9]+)?)'
-      required_at: G6
+      required_at: G3
       why: >-
-        VS Build Tools 2022, Desktop development with C++. Compiles whisper.cpp
-        at G6. Only resolves inside a Developer Command Prompt, which is why this
-        row is reported and never blocking.
+        VS Build Tools 2022, Desktop development with C++. Compiles
+        llama-cpp-python at G3 (ADR-0040) and whisper.cpp at G6. `uv sync` fails
+        for everyone from G3 onward, not only operators who select llamacpp as
+        their runtime provider -- Python has no concept of "installed but not
+        chosen." Only resolves inside a Developer Command Prompt, which is why
+        this row is reported and never blocking.
   # Python packages the gates import. Absence is not a style problem: without
   # grpcio-tools the protobuf gate exits 2, and exit 2 is a BROKEN GATE, not a
   # passing repository (CI_Architecture §4).

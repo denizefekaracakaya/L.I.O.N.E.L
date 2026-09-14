@@ -62,6 +62,21 @@ dependencies = [
     # too, and two ADRs must not pin it independently.
     "qdrant-client>=1.19",
     "fastembed>=0.8",
+    # ADR-0040 — the BrainProvider clients (ADR-0001, ADR-0009). Ollama is called over
+    # the httpx already declared above (DEP-002: one HTTP client), so it needs no entry
+    # here.
+    #
+    # anthropic is the reference implementation ADR-0001's golden-transcript comparison
+    # needs on the other side of `ollama` — without it there is nothing to compare
+    # against. It is the first dependency in this repository whose ordinary path talks
+    # to a service outside Efe's machine; l0-conformance keeps it out of L0
+    # (config/tiers/l0.toml, l0_forbidden_providers), which ADR-0040 depends on rather
+    # than duplicates.
+    "anthropic>=1.4",
+    # llama-cpp-python: in-process bindings, not a second supervised HTTP server
+    # (ADR-0040's Alternatives Rejected). A compiled extension — scripts/check_env.sh's
+    # `cl` preflight row moved from required_at: G6 to G3 for exactly this.
+    "llama-cpp-python>=0.3.35",
 ]
 
 [project.optional-dependencies]

@@ -7,7 +7,7 @@ scope, and **Phase 3 (Brain Gateway, G3) is open**. Its DoD is MASTER_PLAN_v2 §
 and `Phase3_Entry_Checklist.md` separates the three clauses blocked on an ADR from the work
 that is permitted without one.
 
-**This repository is an architecture first, and runtime code second.** 39 ADRs, 27
+**This repository is an architecture first, and runtime code second.** 41 ADRs, 27
 JSON Schemas + 3 protobuf contracts, a pinned artifact lock — and a policy pipeline that
 enforces them: 23 gates, 151 rules, 27 CI jobs.
 
@@ -246,7 +246,7 @@ its checks.
 ## Where things are
 
 ```
-docs/decisions/          39 ADRs + README index (ARCH-016 requires the index be complete)
+docs/decisions/          41 ADRs + README index (ARCH-016 requires the index be complete)
 contracts/               27 JSON Schemas + 3 protobuf, 5 planes, MANIFEST.json
 ci/gates/                23 gates + _lib.py (Finding, exit codes) + _checksum.py
 ci/policy/policy.yaml    ALL thresholds, allowlists and registries

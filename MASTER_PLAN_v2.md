@@ -542,8 +542,10 @@ C:\Users\deniz\Desktop\L.I.O.N.E.L\
 │   ├── kustomize/overlays/             #  minikube · staging · cloud
 │   └── observability/                  #  OTel Collector, Grafana dashboards
 │
-├── evals/                              ← NEW  Phase 8
+├── evals/                              ← NEW  golden/harness slice: Phase 3 (ADR-0041);
+│   │                                       full suite: Phase 8 (ADR-0021)
 │   ├── golden/                         #  utterance → expected tool-call set
+│   ├── harness/                        #  replay runner (Phase 3: anthropic/ollama only)
 │   ├── stt/                            #  WER fixtures, EN + TR
 │   ├── tts/  wake/                     #  intelligibility · FAR/FRR corpus
 │   └── harness/
