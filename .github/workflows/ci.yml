@@ -369,7 +369,12 @@ jobs:
       # layer, which validates the shipped config against the frozen schemas; pyyaml
       # for tests/unit/test_preflight.py, which reads the preflight table out of
       # ci/policy/policy.yaml. All three are already in pyproject's `ci` extra.
-      - run: pip install psutil jsonschema pyyaml
+      # httpx is a MAIN dependency (not the `ci` extra) — declared for the product, not
+      # for testing it — so it is not implied by anything above. test_ollama_provider.py
+      # (ADR-0040) needs it for httpx.MockTransport; without this line the job installs
+      # cleanly and then fails at collection with ModuleNotFoundError, on every OS, which
+      # is exactly what happened the first time this adapter's tests were pushed.
+      - run: pip install psutil jsonschema pyyaml httpx
       - run: python3 -m unittest discover -s tests -t . -v
         shell: bash
 
