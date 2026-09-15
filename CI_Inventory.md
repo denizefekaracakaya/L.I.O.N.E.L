@@ -13,7 +13,7 @@
 | Current state | **all gates pass · 0 broken** |
 | Runner | `bash ci/run_gates.sh [gate]` |
 | Self-test | `bash ci/self_test.sh` — 35/35 planted violations caught |
-| Runtime code | **11 files** under `src/lionel/` |
+| Runtime code | **14 files** under `src/lionel/` |
 
 ---
 

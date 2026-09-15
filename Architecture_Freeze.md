@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Architecture version | **1.23.0** |
+| Architecture version | **1.24.0** |
 | Freeze date | **2026-08-10** |
-| Tag | **`architecture-1.23.0`** |
+| Tag | **`architecture-1.24.0`** |
 | Status | **FROZEN** — G2 signed 2026-09-02, Phase 3 open, ADR-0039 in force; the freeze governs the architecture, not the code written against it |
-| Previous versions | **1.22.0**, **1.21.0**, **1.20.0**, **1.19.0**, **1.18.0**, **1.17.1**, **1.17.0**, **1.16.0**, **1.15.0**, **1.14.0**, **1.13.0**, **1.12.1**, **1.12.0**, **1.11.0**, **1.10.0**, **1.9.1**, **1.9.0**, **1.8.0**, **1.7.0**, **1.6.0**, **1.5.0**, **1.4.0**, **1.3.0**, **1.2.0**, **1.1.1**, **1.1.0**, **1.0.0** — all tagged, all unchanged and still valid |
+| Previous versions | **1.23.0**, **1.22.0**, **1.21.0**, **1.20.0**, **1.19.0**, **1.18.0**, **1.17.1**, **1.17.0**, **1.16.0**, **1.15.0**, **1.14.0**, **1.13.0**, **1.12.1**, **1.12.0**, **1.11.0**, **1.10.0**, **1.9.1**, **1.9.0**, **1.8.0**, **1.7.0**, **1.6.0**, **1.5.0**, **1.4.0**, **1.3.0**, **1.2.0**, **1.1.1**, **1.1.0**, **1.0.0** — all tagged, all unchanged and still valid |
 | Governance | **0 ADRs pending.** ADR-0040 and ADR-0041 accepted 2026-09-10 and in force |
 
 > **In force.** 1.1.0 is additive: it adds three decisions and three gates, and changes no
@@ -63,6 +63,11 @@
 ---
 
 ## 1. Architecture version
+
+**1.24.0** — MINOR over 1.23.0: `ARCH-018`'s `provider_branch_allowed_dirs` gains
+`"tests"`. No ADR added, no decision changed — MINOR rather than PATCH because
+`ci/policy/policy.yaml` gains a directory in a gate's enforcement scope, which is more
+than correcting text (the same standard §9.11 set for 1.7.0). §9.32.
 
 **1.23.0** — MINOR over 1.22.0: ADR-0040 and ADR-0041 accepted, so two pending decisions
 come into force, which §1 defines as MINOR. `pyproject.toml` gains `anthropic` and
@@ -202,12 +207,12 @@ Deterministic SHA-256 over the architecture-defining set — sorted paths, path 
 file bytes, grouped, then the group digests concatenated and hashed.
 
 ```
-ARCHITECTURE CHECKSUM                                          architecture 1.23.0
-sha256:853dc1c8d3dd01df583bfcd4fb7233877f4a1bcff25ceb83b116c7f35ec104fa
+ARCHITECTURE CHECKSUM                                          architecture 1.24.0
+sha256:7bfea37e55582e51839da546bd1269fa2431aca40e98d9582ac338b73e712c43
 
   ADRs         41 files   sha256:9530bc0283795aef158f417304551ba5…
   contracts    31 files   sha256:87bba7412e01f620f1e78be02ad9ffc0…
-  policy        8 files   sha256:00464378149032441ebf47ecb002090a…
+  policy        8 files   sha256:80090303ede6698ae72547b29b33bbf2…
   artifacts     1 file    sha256:fc4d6a69230d0b3b5fb25d3f12b71176…
   plan          1 file    sha256:289414e330c4a752c747e0eb7346609e…
 
@@ -217,6 +222,8 @@ sha256:853dc1c8d3dd01df583bfcd4fb7233877f4a1bcff25ceb83b116c7f35ec104fa
 Superseded values, kept so the earlier tags stay verifiable:
 
 ```
+architecture 1.23.0  sha256:853dc1c8d3dd01df583bfcd4fb7233877f4a1bcff25ceb83b116c7f35ec104fa
+                     82 files — ADRs 41 · contracts 31 · policy 8 · artifacts 1 · plan 1
 architecture 1.22.0  sha256:f2090e9cc300314ce27528103ed6a8c5368fe40bd5338ee334c90922a2cca724
                      82 files — ADRs 41 · contracts 31 · policy 8 · artifacts 1 · plan 1
 architecture 1.21.0  sha256:8b454522a4f42ed20527a7680589713287b82811756bccca7236140da28b068c
@@ -2017,6 +2024,45 @@ MINOR by §1: two pending decisions come into force. `ci/policy/policy.yaml` is 
 file in the checksum set that changed content (the ADR bodies moved from `Proposed` to
 `Accepted`, which is itself a checksummed change to `docs/decisions/*.md`); `MASTER_PLAN_v2.md`
 changed by one line. Checksum sha256:853dc1c8d3dd…, 82 files.
+
+---
+
+### 9.32 Version 1.24.0 — the first adapter, and a gate that had never been asked to let a test import what it forbids
+
+`Phase3_Entry_Checklist.md` item 2's remaining half — the three provider adapters —
+started with `ollama`, per ADR-0040's own reasoning: no credential, plain HTTP/JSON,
+the simplest surface to get right first.
+
+**Delivered under `src/lionel/brain/`, none of it ADR-governed** (§4's "implementation
+under `src/lionel/` conforming to frozen contracts," and "tests," in full):
+
+| | |
+|---|---|
+| `lionel.brain.streaming.aggregate_stream` | provider-agnostic: turns any adapter's `StreamEvent` sequence into a `ProviderResponse`, written once rather than once per adapter — the exact drift ADR-0039 found four times over, pre-empted here by construction |
+| `lionel.brain.providers.OllamaProvider` | `stream()`, `capabilities()`, `health()` against `/api/chat`, `/api/version`, `/api/ps` |
+| `lionel.coordinators.BrainProvider` | the G1 stub — `generate(*, messages, tools)`, untyped, unexercised by any test in the repository — replaced by the real streaming shape. Declared in `coordinators/__init__.py`, not `lionel.brain`, because ADR-0001 says so exactly: *"core/turn_executor imports BrainProvider and nothing else,"* and this module IS `core/turn_executor` |
+| `tests/unit/test_brain_streaming.py`, `test_ollama_provider.py` | 48 assertions, every request/response shape checked against the real contracts through the offline `$ref` registry `test_brain_contract.py` built, not a hand-copied shape of them |
+
+**`ARCH-018` had never been asked to let a test import what it forbids elsewhere.**
+Writing `test_ollama_provider.py` — which must import `OllamaProvider` directly to test
+it — tripped the rule `ADR-0040`'s work two weeks earlier existed to enforce:
+*"importing a concrete provider from outside `brain/providers/`."* `provider_branch_
+allowed_dirs` already exempted `contracts`, `ci`, `docs` and `evals` — directories that
+are not runtime callers in the sense ADR-0001 means — and had simply never gained `tests`,
+because no adapter had existed yet to write a test against. Added now, for the same
+reason the other four were: a unit test exercising one adapter is not the caller whose
+behaviour ADR-0001 keeps from forking per provider; it is proof the adapter is correct.
+
+**Not witnessed against a live Ollama.** None was reachable in this environment.
+Every translation is checked with `httpx.MockTransport` against the real request/response
+shape Ollama's `/api/chat` documents, and against the frozen contracts directly — a real
+assertion with no live model on the other end. `ADR-0041`'s `--live` witness is what
+closes that gap, once the harness exists to run it.
+
+MINOR by §1: `ci/policy/policy.yaml` gains a directory in a gate's scope, no ADR, no
+decision changed. `src/lionel/` and `tests/` are outside the checksum set, so this
+version moved for one line in one checksummed file. Checksum sha256:7bfea37e5558…,
+82 files.
 
 ---
 

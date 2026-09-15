@@ -527,7 +527,10 @@ shell:
 architecture:
   # ADR-0009: callers branch on ProviderCapabilities, never on provider identity.
   provider_names: [anthropic, ollama, llamacpp]
-  provider_branch_allowed_dirs: ["src/lionel/brain/providers", "contracts", "ci", "docs", "evals"]
+  # tests/: a unit test for ONE adapter must import that adapter directly to test it --
+  # that is not the ADR-0001 hazard (a runtime CALLER whose behaviour forks per provider).
+  # Missing until the first adapter (ollama, ADR-0040) needed a test file to prove it.
+  provider_branch_allowed_dirs: ["src/lionel/brain/providers", "contracts", "ci", "docs", "evals", "tests"]
   # ADR-0006: the control plane never carries media payload.
   control_plane_dirs: ["contracts/mcp", "contracts/events", "contracts/core"]
   media_payload_keys: ["payload_b64", "payload", "pcm", "audio_bytes"]

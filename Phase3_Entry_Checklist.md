@@ -65,7 +65,7 @@ implementation could not begin with implementation: three of its six DoD clauses
 blocked on a decision `Architecture_Freeze.md` §4 reserves. All three are decided; two
 still have real engineering behind the decision.
 
-### ◐ 2. An ADR for the provider clients — **ADR-0040 accepted 2026-09-10; adapters not yet written**
+### ◐ 2. An ADR for the provider clients — **ADR-0040 accepted 2026-09-10; 1 of 3 adapters written**
 
 ADR-0001 ships three implementations — `anthropic`, `ollama`, `llamacpp` — and chose none
 of their Python clients. `pyproject.toml` said so in its own header: *"MASTER_PLAN_v2 names
@@ -90,6 +90,23 @@ purpose rather than by omission.
 shape into `ProviderRequest`/`StreamEvent`/`ProviderResponse`/`ProviderCapabilities`. ADR-0040's
 own Erratum says so plainly rather than claiming delivery: this is real engineering, not a
 configuration change, and it did not happen in the same pass as the dependency additions.
+
+**`ollama` is the one done.** `lionel.brain.providers.OllamaProvider` (`stream`,
+`capabilities`, `health` against `/api/chat`, `/api/version`, `/api/ps`) and the
+provider-agnostic `lionel.brain.streaming.aggregate_stream` it shares with the other two
+adapters once they exist. `lionel.coordinators.BrainProvider` — the G1 stub, `generate(*,
+messages, tools)`, untyped and unexercised by any test in the repository — is replaced by
+the real streaming Protocol; declared in `coordinators/__init__.py` rather than
+`lionel.brain`, because that module IS `core/turn_executor` and ADR-0001 says exactly that
+is where the name belongs. 48 assertions, every shape checked against the real contracts
+through `test_brain_contract.py`'s offline `$ref` registry. **Not witnessed against a live
+Ollama** — none was reachable while writing this; `ADR-0041`'s `--live` mode is what
+closes that gap. `anthropic` and `llama-cpp-python` remain unwritten.
+
+**One gate-config gap found writing the test.** `ARCH-018`'s `provider_branch_allowed_dirs`
+had never included `tests/` — a unit test for one adapter must import it directly to test
+it, which is not the ADR-0001 hazard (a runtime caller forking per provider). Added,
+architecture 1.24.0.
 
 ### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness not yet written**
 

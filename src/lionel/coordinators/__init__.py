@@ -132,9 +132,47 @@ class SessionCoordinator:
 # ── The four stateless coordinators ────────────────────────────────────────────────
 
 class BrainProvider(Protocol):
-    """ADR-0001 / ADR-0009. Declared here only so TurnExecutor can name what it needs."""
+    """ADR-0001 / ADR-0009. Declared here — not in `lionel.brain` — because ADR-0001 says
+    so exactly: *"core/turn_executor imports BrainProvider and nothing else."* This module
+    IS `core/turn_executor`, and importing the Protocol from `lionel.brain.providers` would
+    put a concrete-adapter package on TurnExecutor's import path even for the Protocol
+    alone. `ARCH-018` enforces the consequence: nothing outside `brain/providers/` may
+    import a concrete provider.
 
-    def generate(self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]): ...
+    Every argument and return value here is the corresponding contract in
+    `contracts/events/v1/` as a plain `dict` — `ProviderRequest` in, `StreamEvent` objects
+    out of `stream()`, `ProviderCapabilities` from `capabilities()`,
+    `contracts/core/v1/health-status.schema.json`'s shape from `health()`. Not typed
+    dataclasses: these three methods exist entirely to move JSON-Schema-governed wire
+    objects between layers, and a parallel dataclass hierarchy with a `to_dict` for every
+    nested `$ref` would be ceremony around objects whose only job is validating against the
+    schemas that already define them.
+
+    G1 shipped this as `generate(*, messages, tools)`, untyped and unexercised — no test in
+    the repository ever called it. G3's real shape replaces it rather than extending it;
+    `ADR-0040`'s adapters (`lionel.brain.providers.*`) implement this structurally, by
+    duck typing, with no import of this module required in the other direction.
+    """
+
+    def stream(self, request: dict[str, Any]) -> Iterable[dict[str, Any]]:
+        """`request` is a `ProviderRequest`. Yields `StreamEvent` objects in order,
+        ending with exactly one `type: "done"` event (or `type: "error"`) — the same
+        guarantee `contracts/events/v1/stream-event.schema.json`'s discriminated union
+        describes. Closing the iterator early (`generator.close()`) is how a caller
+        cancels a streaming generation; an adapter must treat `GeneratorExit` as "stop and
+        release the connection," not as an error to report through the stream itself."""
+        ...
+
+    def capabilities(self) -> dict[str, Any]:
+        """A `ProviderCapabilities` object. Never used by a caller to decide behaviour by
+        provider identity (ADR-0009) — only by capability flag."""
+        ...
+
+    def health(self) -> dict[str, Any]:
+        """`contracts/core/v1/health-status.schema.json`'s shape. `live` and `ready` are
+        DISTINCT — a model mid-load is live and not ready — which is the entire reason
+        this method exists rather than a boolean."""
+        ...
 
 
 @dataclass(frozen=True)
