@@ -65,7 +65,7 @@ implementation could not begin with implementation: three of its six DoD clauses
 blocked on a decision `Architecture_Freeze.md` §4 reserves. All three are decided; two
 still have real engineering behind the decision.
 
-### ◐ 2. An ADR for the provider clients — **ADR-0040 accepted 2026-09-10; 1 of 3 adapters written**
+### ◐ 2. An ADR for the provider clients — **ADR-0040 accepted 2026-09-10; 2 of 3 adapters written**
 
 ADR-0001 ships three implementations — `anthropic`, `ollama`, `llamacpp` — and chose none
 of their Python clients. `pyproject.toml` said so in its own header: *"MASTER_PLAN_v2 names
@@ -101,12 +101,42 @@ the real streaming Protocol; declared in `coordinators/__init__.py` rather than
 is where the name belongs. 48 assertions, every shape checked against the real contracts
 through `test_brain_contract.py`'s offline `$ref` registry. **Not witnessed against a live
 Ollama** — none was reachable while writing this; `ADR-0041`'s `--live` mode is what
-closes that gap. `anthropic` and `llama-cpp-python` remain unwritten.
+closes that gap.
 
 **One gate-config gap found writing the test.** `ARCH-018`'s `provider_branch_allowed_dirs`
 had never included `tests/` — a unit test for one adapter must import it directly to test
 it, which is not the ADR-0001 hazard (a runtime caller forking per provider). Added,
 architecture 1.24.0.
+
+**One CI-config gap found the same day, the hard way.** `httpx` (a main dependency, not
+the `ci` extra) was never installed by the `unit-tests` workflow job, which only names the
+three `ci`-extra packages. `main` went red on both OS matrix entries within minutes of the
+push — `ModuleNotFoundError` at test collection, not a real test failure. Fixed the same
+day by adding `httpx` to that job's install line, with a comment naming the reason so the
+next adapter's test dependency does not rediscover it. `llama_cpp` will need the same line
+added when its adapter is written — `pip install` does not read `pyproject.toml`.
+
+**`anthropic` is the second adapter done.** `lionel.brain.providers.AnthropicProvider`
+(`stream`, `capabilities`, `health` via the SDK's `messages.stream` and
+`models.retrieve`). Genuinely different translation shape from `ollama`: tool-call
+arguments arrive as real incremental JSON fragments (`input_json_delta`) rather than one
+atomic chunk — the actual case `ToolCallDelta`'s `complete` flag and
+`aggregate_stream`'s fragment-accumulation exist for — and call ids are the SDK's own
+(`toolu_...`), not synthesized. `ProviderRequest.trust_level`'s documented purpose —
+*"the adapter can annotate untrusted spans in the prompt"* — is implemented: a text block
+whose `trust` is `tool_result` or `external_content` is wrapped with an explicit
+`UNTRUSTED CONTENT` marker before it reaches the model, defence in depth only, per that
+field's own description. `response_schema` and `image_ref` are both refused loudly
+(`AnthropicError`) rather than silently dropped — the SDK's structured-output parameter
+takes a Python type, not the raw JSON Schema this contract carries, and no ref-fetching
+capability exists to turn an `image_ref` into bytes. 40 assertions, every fixture a real
+`anthropic` SDK type constructed from the installed package's own definitions (verified
+directly, not guessed), every request/response checked against the frozen contracts.
+**Not witnessed against a live account** — no credential was available while writing
+this; `ADR-0041`'s `--live` witness is what closes that gap. Anthropic's own cost is
+never guessed: `cost_per_1k_input_usd`/`output_usd` are explicit constructor arguments,
+and `estimated_cost_usd` stays `null` — honestly, not wrong — until an operator supplies
+current pricing. `llama-cpp-python` remains unwritten.
 
 ### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness not yet written**
 

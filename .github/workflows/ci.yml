@@ -369,12 +369,14 @@ jobs:
       # layer, which validates the shipped config against the frozen schemas; pyyaml
       # for tests/unit/test_preflight.py, which reads the preflight table out of
       # ci/policy/policy.yaml. All three are already in pyproject's `ci` extra.
-      # httpx is a MAIN dependency (not the `ci` extra) — declared for the product, not
-      # for testing it — so it is not implied by anything above. test_ollama_provider.py
-      # (ADR-0040) needs it for httpx.MockTransport; without this line the job installs
-      # cleanly and then fails at collection with ModuleNotFoundError, on every OS, which
-      # is exactly what happened the first time this adapter's tests were pushed.
-      - run: pip install psutil jsonschema pyyaml httpx
+      # httpx and anthropic are MAIN dependencies (not the `ci` extra) — declared for the
+      # product, not for testing it — so neither is implied by anything above.
+      # test_ollama_provider.py needs httpx.MockTransport; test_anthropic_provider.py
+      # constructs real anthropic SDK types directly (ADR-0040). Without this line the
+      # job installs cleanly and fails at collection with ModuleNotFoundError, on every
+      # OS — which is exactly what happened the first time an adapter's tests were
+      # pushed. The next brain adapter (llamacpp) will need its own entry here too.
+      - run: pip install psutil jsonschema pyyaml httpx anthropic
       - run: python3 -m unittest discover -s tests -t . -v
         shell: bash
 
