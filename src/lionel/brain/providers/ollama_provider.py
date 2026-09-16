@@ -107,7 +107,10 @@ class OllamaProvider:
             "cancellation": True,
             "max_context_tokens": self.max_context_tokens,
             "max_output_tokens": None,
-            "tool_call_reliability": "degraded",
+            # tool_call_reliability deliberately absent: its own schema description says
+            # "Set from the eval harness (ADR-0021), not self-asserted." An adapter has no
+            # eval results to report yet — that is ADR-0021's G8 leaderboard's job, once
+            # ADR-0041's replay harness exists to feed it.
             "requires_network": False,
             "cost_per_1k_input_usd": None,
             "cost_per_1k_output_usd": None,

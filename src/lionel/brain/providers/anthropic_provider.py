@@ -123,7 +123,10 @@ class AnthropicProvider:
             "cancellation": True,
             "max_context_tokens": self.max_context_tokens,
             "max_output_tokens": self.default_max_output_tokens,
-            "tool_call_reliability": "native",
+            # tool_call_reliability deliberately absent: its own schema description says
+            # "Set from the eval harness (ADR-0021), not self-asserted." An adapter has no
+            # eval results to report yet — that is ADR-0021's G8 leaderboard's job, once
+            # ADR-0041's replay harness exists to feed it.
             "requires_network": True,
             "cost_per_1k_input_usd": self.cost_per_1k_input_usd,
             "cost_per_1k_output_usd": self.cost_per_1k_output_usd,

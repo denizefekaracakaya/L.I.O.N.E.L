@@ -65,7 +65,7 @@ implementation could not begin with implementation: three of its six DoD clauses
 blocked on a decision `Architecture_Freeze.md` §4 reserves. All three are decided; two
 still have real engineering behind the decision.
 
-### ◐ 2. An ADR for the provider clients — **ADR-0040 accepted 2026-09-10; 2 of 3 adapters written**
+### ☑ 2. An ADR for the provider clients — **DONE 2026-09-16, all 3 adapters written**
 
 ADR-0001 ships three implementations — `anthropic`, `ollama`, `llamacpp` — and chose none
 of their Python clients. `pyproject.toml` said so in its own header: *"MASTER_PLAN_v2 names
@@ -113,8 +113,7 @@ the `ci` extra) was never installed by the `unit-tests` workflow job, which only
 three `ci`-extra packages. `main` went red on both OS matrix entries within minutes of the
 push — `ModuleNotFoundError` at test collection, not a real test failure. Fixed the same
 day by adding `httpx` to that job's install line, with a comment naming the reason so the
-next adapter's test dependency does not rediscover it. `llama_cpp` will need the same line
-added when its adapter is written — `pip install` does not read `pyproject.toml`.
+next adapter's test dependency does not rediscover it.
 
 **`anthropic` is the second adapter done.** `lionel.brain.providers.AnthropicProvider`
 (`stream`, `capabilities`, `health` via the SDK's `messages.stream` and
@@ -136,7 +135,38 @@ directly, not guessed), every request/response checked against the frozen contra
 this; `ADR-0041`'s `--live` witness is what closes that gap. Anthropic's own cost is
 never guessed: `cost_per_1k_input_usd`/`output_usd` are explicit constructor arguments,
 and `estimated_cost_usd` stays `null` — honestly, not wrong — until an operator supplies
-current pricing. `llama-cpp-python` remains unwritten.
+current pricing.
+
+**A real cross-adapter inconsistency, caught and fixed in all three at once.**
+`ProviderCapabilities.tool_call_reliability`'s own schema description says *"Set from the
+eval harness (ADR-0021), not self-asserted."* Both `ollama` and `anthropic` had
+self-asserted it anyway (`"degraded"`, `"native"`) — nothing caught this until writing
+`llamacpp` made the pattern visible by comparison. All three now omit the field, and
+`test_brain_contract.py` gained a check across all three that would catch a fourth
+adapter reintroducing it.
+
+**`llamacpp` is the third and final adapter.** `lionel.brain.providers.LlamaCppProvider`
+— in-process bindings, no network, no HTTP client at all, the only one of the three
+usable at L0 (`config/tiers/l0.toml`'s `fallback_chain`). The model loads lazily on
+first use, behind a lock, with a failed load remembered rather than retried on every
+subsequent turn. Tool call ids are the model's own, like `anthropic` and unlike the
+synthesized ones `ollama` needed. Token usage is genuinely derived rather than guessed:
+`Llama.n_tokens`'s delta before/after a call is the model's own exact running count
+(prompt + completion combined), split by re-tokenizing the generated text —
+`token_counts_estimated: True` because the split is inferred even though every number
+feeding it came from the real tokenizer. 31 assertions.
+
+**`llama_cpp` is imported lazily — module-level, unlike the other two adapters — and
+that was the right call, checked rather than assumed.** PyPI ships llama-cpp-python as
+a source tarball only, no prebuilt wheel for any platform; adding it to the `unit-tests`
+CI job's install line, the fix the previous two adapters needed, would mean compiling
+llama.cpp on every push. Confirmed by building a venv with every OTHER dependency the
+job needs and `llama_cpp` deliberately absent, then running the full 376-test suite
+against it — clean, because the test file never imports the package at all; every test
+injects a fake model factory. `lionel.brain.providers.llamacpp_provider` imports it
+inside `_default_factory` only, the same shape `lionel.memory`'s `fastembed` import
+already uses, for the same reason: a missing package should be a named error at the
+point of use, not an `ImportError` from CI's test collector.
 
 ### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness not yet written**
 

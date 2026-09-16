@@ -298,5 +298,27 @@ class TestQuotaGuardAgreesWithTheStopReasonContract(BrainContracts):
                               verdict.stop_reason))
 
 
+class TestNoAdapterSelfAssertsToolCallReliability(unittest.TestCase):
+    """`ProviderCapabilities.tool_call_reliability`'s own schema description: *"Set from
+    the eval harness (ADR-0021), not self-asserted."* The first draft of both `ollama`
+    and `anthropic` violated this — each hardcoded a value — until writing `llamacpp`
+    surfaced the inconsistency by comparison. Fixed in all three at once; this is what
+    keeps a fourth adapter from quietly reintroducing it."""
+
+    def test_none_of_the_three_adapters_set_the_field(self):
+        from lionel.brain.providers.anthropic_provider import AnthropicProvider
+        from lionel.brain.providers.llamacpp_provider import LlamaCppProvider
+        from lionel.brain.providers.ollama_provider import OllamaProvider
+
+        providers = [
+            ("ollama", OllamaProvider("http://x", "m", 8192)),
+            ("anthropic", AnthropicProvider("sk-fake", "m", 200000, 4096)),
+            ("llamacpp", LlamaCppProvider("m.gguf", 8192, 4096)),
+        ]
+        for name, provider in providers:
+            with self.subTest(provider=name):
+                self.assertNotIn("tool_call_reliability", provider.capabilities())
+
+
 if __name__ == "__main__":
     unittest.main()

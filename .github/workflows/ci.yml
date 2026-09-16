@@ -375,7 +375,16 @@ jobs:
       # constructs real anthropic SDK types directly (ADR-0040). Without this line the
       # job installs cleanly and fails at collection with ModuleNotFoundError, on every
       # OS — which is exactly what happened the first time an adapter's tests were
-      # pushed. The next brain adapter (llamacpp) will need its own entry here too.
+      # pushed.
+      #
+      # llama-cpp-python is deliberately NOT here. PyPI ships no prebuilt wheel for it —
+      # only a source tarball — so adding it would mean compiling llama.cpp on every CI
+      # run, which is slow on Linux and needs a configured C++ toolchain on Windows.
+      # lionel.brain.providers.llamacpp_provider imports it lazily, inside the one
+      # method a real model load calls, for exactly this reason (the same shape
+      # lionel.memory's fastembed import already uses) — confirmed by running the full
+      # suite in a venv missing the package entirely before writing this line, rather
+      # than assuming lazy-import is enough.
       - run: pip install psutil jsonschema pyyaml httpx anthropic
       - run: python3 -m unittest discover -s tests -t . -v
         shell: bash
