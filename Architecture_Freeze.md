@@ -64,6 +64,12 @@
 
 ## 1. Architecture version
 
+**1.25.0** — MINOR over 1.24.0: `artifacts.lock.yaml` gains a 14th entry
+(`eval_golden_read_a_file_ollama`), executing ADR-0041's own decision that a golden case
+is a pinned artifact. No new ADR, no decision changed — MINOR rather than PATCH because
+this adds a new pinned entry and moves `meta.resolved` 13→14, which is more than
+correcting text (the same standard §9.11 and §9.32 set). §9.33.
+
 **1.24.0** — MINOR over 1.23.0: `ARCH-018`'s `provider_branch_allowed_dirs` gains
 `"tests"`. No ADR added, no decision changed — MINOR rather than PATCH because
 `ci/policy/policy.yaml` gains a directory in a gate's enforcement scope, which is more
@@ -207,13 +213,13 @@ Deterministic SHA-256 over the architecture-defining set — sorted paths, path 
 file bytes, grouped, then the group digests concatenated and hashed.
 
 ```
-ARCHITECTURE CHECKSUM                                          architecture 1.24.0
-sha256:7bfea37e55582e51839da546bd1269fa2431aca40e98d9582ac338b73e712c43
+ARCHITECTURE CHECKSUM                                          architecture 1.25.0
+sha256:c39f03c26cf11a2fa281a36c51374f96e8a78ca8811b16917b0d0824dcfe93f9
 
   ADRs         41 files   sha256:9530bc0283795aef158f417304551ba5…
   contracts    31 files   sha256:87bba7412e01f620f1e78be02ad9ffc0…
   policy        8 files   sha256:80090303ede6698ae72547b29b33bbf2…
-  artifacts     1 file    sha256:fc4d6a69230d0b3b5fb25d3f12b71176…
+  artifacts     1 file    sha256:6c53abeb2fc2f9912c5a4c400e1805ad…
   plan          1 file    sha256:289414e330c4a752c747e0eb7346609e…
 
   82 files hashed
@@ -222,6 +228,8 @@ sha256:7bfea37e55582e51839da546bd1269fa2431aca40e98d9582ac338b73e712c43
 Superseded values, kept so the earlier tags stay verifiable:
 
 ```
+architecture 1.24.0  sha256:7bfea37e55582e51839da546bd1269fa2431aca40e98d9582ac338b73e712c43
+                     82 files — ADRs 41 · contracts 31 · policy 8 · artifacts 1 · plan 1
 architecture 1.23.0  sha256:853dc1c8d3dd01df583bfcd4fb7233877f4a1bcff25ceb83b116c7f35ec104fa
                      82 files — ADRs 41 · contracts 31 · policy 8 · artifacts 1 · plan 1
 architecture 1.22.0  sha256:f2090e9cc300314ce27528103ed6a8c5368fe40bd5338ee334c90922a2cca724
@@ -2063,6 +2071,55 @@ MINOR by §1: `ci/policy/policy.yaml` gains a directory in a gate's scope, no AD
 decision changed. `src/lionel/` and `tests/` are outside the checksum set, so this
 version moved for one line in one checksummed file. Checksum sha256:7bfea37e5558…,
 82 files.
+
+---
+
+### 9.33 Version 1.25.0 — `--live` witnessed for the first time, a real bug it found, and the first golden case entered as a pinned artifact
+
+`ADR-0041`'s `--live` witness, deferred at the end of §9.32 for want of a reachable
+Ollama, ran for the first time. Ollama 0.34.1 was installed on the host (`winget`,
+`qwen2.5:3b-instruct` pulled — under 2 GB, tool-calling capable), and
+`OllamaProvider.stream()` was run against it directly, not mocked.
+
+**It found a real defect, not a clean pass.** `ollama_provider.py` assumed Ollama's wire
+response never names a tool call, and synthesized `ollama-<n>` unconditionally. The live
+response — checked by hand with `curl` in both streaming and non-streaming mode before any
+recording code was written — carries a real `tool_calls[].id` (`"call_uukikxqs"`, observed,
+not a doc guess). Fixed in `_consume()`: `call.get("id") or f"ollama-{tool_call_index[0]}"`.
+Two tests added to `test_ollama_provider.py` (34 total, was 32) pin both the real-id path
+and the synthesized-fallback path. `ADR-0041`'s own reasoning for `--live` existing at all
+— a contract fixture built from documentation, reviewed once and never run, is exactly the
+failure shape `Phase2_Final_Signoff.md` §1 found four times over — held again, immediately,
+the first time it was tried.
+
+**The first golden case: `evals/golden/read_a_file/`.** Recorded against the fixed adapter
+with `evals.harness.record_response()`, then confirmed with `evals/harness/run.py`:
+`1 passed, 0 failed, 1 not recorded` — the `not_recorded` line is `anthropic`, honestly
+reported, because no live `ANTHROPIC_API_KEY` was available in this session. `ADR-0041`
+item 1's requirement is both providers agreeing; this closes the `ollama` half only.
+
+**`artifacts.lock.yaml` gains its 14th entry**, `eval_golden_read_a_file_ollama`, executing
+`ADR-0041` item 2's own words: *"a golden case is a pinned artifact, entered in
+`artifacts.lock.yaml`."* It does not fit the file's existing verification tiers cleanly —
+tiers A–D all describe trusting a THIRD PARTY's publication of a hash; this file has no
+upstream to diverge from, because the project produced it. `provenance: project-produced`
+(already declared in `ci/policy/policy.yaml`'s `valid_provenance`, previously used only by
+the still-`NOT_YET_BUILT` `wake_lionel` entry) is the honest fit: the sha256 pins against
+silent drift in a file nobody re-fetches, not against upstream tampering. `meta.resolved`
+moves 13→14; the header's "13 of 13… G0 artifact criterion" note is corrected to name that
+14 is a later, G3 addition, not a rewrite of what G0 already closed.
+
+MINOR by §1: no new ADR, no decision changed — `ADR-0041` already decided this was owed.
+MINOR rather than PATCH for the same reason §9.32 gave `ARCH-018`'s directory: adding a new
+pinned entry is more than correcting text. `src/lionel/`, `tests/` and `evals/` are outside
+the checksum set; only `artifacts.lock.yaml` moved the checksum. Checksum
+sha256:c39f03c26cf1…, 82 files.
+
+**Still open**: the `anthropic` half of `read_a_file`, blocked on a live credential not
+present in this environment; and wiring `evals/harness/run.py` into `ci.yml`, deliberately
+deferred again — one recorded case against one provider is not the two-provider agreement
+`ADR-0041` calls for, and a CI job asserting equivalence it cannot yet check would be
+exactly the `l0-conformance` hollow-gate shape §9.32's own history warns against repeating.
 
 ---
 

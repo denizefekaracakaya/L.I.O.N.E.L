@@ -168,7 +168,7 @@ inside `_default_factory` only, the same shape `lionel.memory`'s `fastembed` imp
 already uses, for the same reason: a missing package should be a named error at the
 point of use, not an `ImportError` from CI's test collector.
 
-### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness built 2026-09-17, no data or CI job yet**
+### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness built and `--live`-witnessed 2026-09-17; one provider recorded, one to go**
 
 v1.0 required the cross-provider comparison as a one-time measurement. v2's DoD requires it
 as a regression gate — and, it turned out, contradicts itself about which phase it belongs
@@ -197,23 +197,31 @@ is a runnable CLI reporting pass/fail/not-recorded per case. 18 tests, every fix
 by running the *real* `OllamaProvider` against a controlled fake transport and capturing
 its actual output — not a hand-typed guess at a `StreamEvent` shape.
 
-**`evals/golden/` is genuinely empty**, with a `README.md` documenting the case format so
-it survives being committed. No `anthropic` credential and no reachable `ollama` existed
-while this was built — the same gap every adapter's own docstring already names. Populating
-it needs a `--live` recording step this session could not run, and `run.py` says so in its
-own output every time it runs on zero cases, rather than reporting a silent, meaningless
-green.
+**`evals/golden/read_a_file/` is no longer empty.** Ollama was installed on the host
+(`winget`, 0.34.1) and `qwen2.5:3b-instruct` pulled; `OllamaProvider.stream()` was run
+against it for real, and its output recorded with `evals.harness.record_response()`. The
+recording session found a real defect before it found a passing case: the adapter always
+synthesized `call_id`, but Ollama's real wire response carries one (`tool_calls[].id`).
+Fixed in `ollama_provider.py`, pinned by two new tests, then re-recorded against the fix.
+`evals/harness/run.py` reports the honest state: `1 passed, 0 failed, 1 not recorded` — the
+`ollama` half of `read_a_file` passes; `anthropic` is `not_recorded`, because no live
+`ANTHROPIC_API_KEY` was available in this session. `ADR-0041` item 1 needs both providers
+to agree, so this item stays ◐ until `anthropic` is recorded too.
+
+**`artifacts.lock.yaml` gains its 14th entry**, `eval_golden_read_a_file_ollama`, per item
+2's own decision — `provenance: project-produced`, since there is no upstream to diverge
+from for locally-recorded data. Architecture bumped to 1.25.0 (§9.33).
 
 **No CI job yet, deliberately, not an oversight.** `ADR-0041` calls for a job that blocks
-merge on a regression; with zero recorded cases, that job would pass trivially on every
-push and report nothing — precisely `l0-conformance`'s own history, *"present, green, and
-hollow… worse than absent, because an absent gate is visibly missing and a green stub is
-not."* Wiring it is the harness's next step, the day the first case is recorded, not before.
+merge on a regression; with only one provider recorded for one case, that job would either
+pass trivially or assert an equivalence it cannot yet check — precisely `l0-conformance`'s
+own history, *"present, green, and hollow… worse than absent, because an absent gate is
+visibly missing and a green stub is not."* Wiring it waits for `anthropic` to close the
+same case, so the first CI run asserts a real two-provider agreement, not a placeholder.
 
-**Two smaller gaps left for the same reason:** no `artifacts.lock.yaml` entries yet (a
-pinned golden case needs a real recording to pin — `no-pending`'s own principle, one layer
-up from artifacts into eval data), and `check_env.sh` has no `--live` row, since there is no
-`--live` recording CLI yet to check preconditions for. Both follow the first real recording.
+**One smaller gap left for the same reason:** `check_env.sh` has no `--live` row yet for
+this harness's recording step. Follows once both providers are recorded and the CI job is
+wired, in one pass rather than piecemeal.
 
 ### ☑ 4. Whether `anthropic` may hold a credential at L0 — **DONE 2026-09-10, no new mechanism**
 
@@ -264,6 +272,16 @@ coherence-pinning classes.
 three adapters (`OllamaProvider`, `AnthropicProvider`, `LlamaCppProvider`) under
 `src/lionel/brain/providers/`, against contracts that no longer contradict each other.
 Items 2, 5, 6, 7 and 8 together are the whole of what this item asked for.
+
+**The DoD's own first clause — "identical `ToolSpec` produces a valid native tool schema
+for all three providers" — had no test making that exact claim** until 2026-09-17. Each
+adapter's unit test proved its own `_translate_tool` correct against a tool dict of its
+own invention; three individually-correct translators is not the same claim as one shared
+`ToolSpec` instance producing three individually-valid native shapes.
+`tests/contract/test_brain_contract.py`'s
+`TestIdenticalToolSpecProducesAValidNativeSchemaForAllThreeProviders` closes the gap: one
+fixture, validated against `tool-spec.schema.json` itself, then run through all three
+`_translate_tool`s and checked against each provider's real native shape.
 
 ### ☑ 6. The static check that no caller branches on provider name — **DONE 2026-09-10**
 

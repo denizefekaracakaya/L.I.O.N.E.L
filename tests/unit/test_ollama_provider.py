@@ -186,6 +186,37 @@ class TestStreamEventTranslation(unittest.TestCase):
         self.assertEqual("fs.read", call["name"])
         self.assertEqual({"path": "x"}, json.loads(call["arguments_delta"]))
 
+    def test_a_real_id_from_the_wire_is_used_when_present(self):
+        """A --live run against Ollama 0.34.1 (qwen2.5:3b-instruct) on 2026-09-17 showed
+        the wire response carries tool_calls[].id — "call_uukikxqs", observed directly.
+        The module docstring first shipped assuming otherwise and synthesized
+        unconditionally; this pins the fix."""
+        events = self._events([
+            {"message": {"role": "assistant", "content": "",
+                        "tool_calls": [{"id": "call_uukikxqs",
+                                       "function": {"name": "fs.read",
+                                                   "arguments": {"path": "config.toml"}}}]},
+             "done": False},
+            {"message": {"role": "assistant", "content": ""}, "done": True,
+             "done_reason": "stop"},
+        ])
+        deltas = [e for e in events if e["type"] == "tool_call_delta"]
+        self.assertEqual("call_uukikxqs", deltas[0]["tool_call"]["call_id"])
+
+    def test_a_missing_id_still_falls_back_to_a_synthesized_one(self):
+        """Defensive, not assumed: an older server or a model whose chat template omits
+        the id must not crash or produce an empty call_id."""
+        events = self._events([
+            {"message": {"role": "assistant", "content": "",
+                        "tool_calls": [{"function": {"name": "fs.read",
+                                                     "arguments": {"path": "x"}}}]},
+             "done": False},
+            {"message": {"role": "assistant", "content": ""}, "done": True,
+             "done_reason": "stop"},
+        ])
+        deltas = [e for e in events if e["type"] == "tool_call_delta"]
+        self.assertEqual("ollama-0", deltas[0]["tool_call"]["call_id"])
+
     def test_a_tool_call_forces_stop_reason_tool_use_even_when_ollama_says_stop(self):
         events = self._events([
             {"message": {"role": "assistant", "content": "",

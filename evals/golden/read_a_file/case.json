@@ -1,0 +1,11 @@
+{
+  "messages": [{"role": "user", "content": "Read the file config.toml for me."}],
+  "tools": [{
+    "name": "fs.read", "description": "Read a file's contents.",
+    "input_schema": {"type": "object", "properties": {"path": {"type": "string"}},
+                     "required": ["path"]},
+    "side_effect": "read", "trust_required": "any"
+  }],
+  "expected_tool_calls": [{"name": "fs.read", "arguments": {"path": "config.toml"}}],
+  "notes": "First real --live case. Recorded 2026-09-17 against ollama qwen2.5:3b-instruct, a locally pulled model with no live anthropic credential available in this session. Recording surfaced a real adapter bug: OllamaProvider always synthesized call_id, but Ollama 0.34.1 actually sends a real tool_calls[].id on the wire -- fixed the same day, before this case was recorded against the fix."
+}

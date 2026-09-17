@@ -298,6 +298,45 @@ class TestQuotaGuardAgreesWithTheStopReasonContract(BrainContracts):
                               verdict.stop_reason))
 
 
+class TestIdenticalToolSpecProducesAValidNativeSchemaForAllThreeProviders(BrainContracts):
+    """`MASTER_PLAN_v2.md` §10 Phase 3 DoD, first clause: *"identical `ToolSpec` produces a
+    valid native tool schema for all three providers."* Each provider's own unit test
+    exercises its `_translate_tool` against a tool dict it invents for itself — correct,
+    but not what the DoD actually asks: the SAME `ToolSpec` instance, fed to all three, each
+    producing a shape valid under that provider's own native contract. Nothing before this
+    test did that in one place; three individually-correct translators is not the same claim
+    as one shared input producing three individually-correct outputs.
+    """
+
+    def test_one_tool_spec_survives_all_three_translators(self):
+        from lionel.brain.providers.anthropic_provider import _translate_tool as to_anthropic
+        from lionel.brain.providers.llamacpp_provider import _translate_tool as to_llamacpp
+        from lionel.brain.providers.ollama_provider import _translate_tool as to_ollama
+
+        tool = {
+            "name": "fs.read", "description": "Read a file's contents.",
+            "input_schema": {"type": "object", "properties": {"path": {"type": "string"}},
+                             "required": ["path"]},
+            "side_effect": "read", "trust_required": "any",
+        }
+        self.assertTrue(valid(self.tool_spec, tool),
+            "the shared fixture must itself be a valid ToolSpec, or the test proves nothing")
+
+        anthropic_native = to_anthropic(tool)
+        self.assertEqual({"name", "description", "input_schema"}, set(anthropic_native))
+        self.assertEqual("fs.read", anthropic_native["name"])
+        self.assertEqual(tool["input_schema"], anthropic_native["input_schema"])
+
+        for name, translate in (("ollama", to_ollama), ("llamacpp", to_llamacpp)):
+            with self.subTest(provider=name):
+                native = translate(tool)
+                self.assertEqual("function", native["type"])
+                fn = native["function"]
+                self.assertEqual({"name", "description", "parameters"}, set(fn))
+                self.assertEqual("fs.read", fn["name"])
+                self.assertEqual(tool["input_schema"], fn["parameters"])
+
+
 class TestNoAdapterSelfAssertsToolCallReliability(unittest.TestCase):
     """`ProviderCapabilities.tool_call_reliability`'s own schema description: *"Set from
     the eval harness (ADR-0021), not self-asserted."* The first draft of both `ollama`

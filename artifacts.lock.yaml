@@ -38,17 +38,18 @@
 #      absent one, because it looks verified.
 #
 # ─────────────────────────────────────────────────────────────────────────────────
-# STATUS: 13 of 13 artifacts reproducible. 0 UNRESOLVED.
-# The G0 artifact criterion is MET. See Artifacts_Final_Report.md.
+# STATUS: 14 of 14 artifacts reproducible. 0 UNRESOLVED.
+# The G0 artifact criterion was MET at 13 of 13 (see Artifacts_Final_Report.md); artifact 14
+# (eval_golden_read_a_file_ollama) was added under G3 (ADR-0041), after G0 closed.
 # ─────────────────────────────────────────────────────────────────────────────────
 
 meta:
   schema_version: 3
   format: yaml
   supersedes: artifacts.lock.toml
-  updated: "2026-08-03"
+  updated: "2026-09-17"
   retrieval_date: "2026-08-02"
-  resolved: 13
+  resolved: 14
   unresolved: 0
   gate: "G0 blocks while unresolved > 0"
   report: Artifact_Verification_Report.md
@@ -464,3 +465,40 @@ source:
       Resolves the unfilled tag placeholder MASTER_PLAN v1.0 left behind. Pin the
       COMMIT, not the tag — tags are movable refs. Never track master; the ggml ABI moves
       fast.
+
+  eval_golden_read_a_file_ollama:
+    status: RESOLVED
+    adr: ADR-0041
+    purpose: >-
+      G3 golden-transcript replay case "read_a_file", ollama half — the first case
+      recorded against a real provider, not synthetic fixture data.
+    source_url: >-
+      n/a — project-produced. Recorded locally by evals.harness.record_response() from a
+      live Ollama 0.34.1 server (qwen2.5:3b-instruct), not fetched from any third party.
+    path: evals/golden/read_a_file/ollama.json
+    provider: ollama
+    model: qwen2.5:3b-instruct
+    ollama_version: "0.34.1"
+    recorded: "2026-09-17"
+    license: project-owned
+    sha256: 6663f4e53b2c206eb76b5ca2c7a395023b554531004a4edc7dedbe24c390e9df
+    verification:
+      tier: A
+      provenance: project-produced
+      method: >-
+        `evals/harness/run.py`'s replay is the confirmation: it aggregates this exact
+        file through `lionel.brain.streaming.aggregate_stream` and compares the result
+        against `case.json`'s `expected_tool_calls`, the same way any consumer of this
+        pin would. The sha256 below pins against silent drift (this file changing without
+        a new recording), not against a third-party original — there is no upstream to
+        diverge from; we are the upstream.
+      retrieved: "2026-09-17"
+      confirm_locally: sha256sum evals/golden/read_a_file/ollama.json
+    note: >-
+      Recording this case surfaced a real adapter bug: OllamaProvider synthesized
+      call_id unconditionally, but Ollama 0.34.1's wire response carries a real
+      tool_calls[].id. Fixed the same day, before this recording. The anthropic half of
+      this case (ADR-0041 requires both providers) is not yet recorded — no live
+      ANTHROPIC_API_KEY was available in the recording session. `case.json` and
+      `anthropic.json`'s absence is tracked by `evals/harness`'s own `not_recorded`
+      status, not by this lockfile; this entry pins only what has actually been recorded.

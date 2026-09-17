@@ -1,0 +1,34 @@
+[
+  {
+    "turn_id": "01JQ4X8ZK9P2M7VN3RTYB6WCDE",
+    "seq": 1,
+    "provider": "ollama",
+    "type": "tool_call_delta",
+    "tool_call": {
+      "call_id": "call_73lmkd29",
+      "index": 0,
+      "name": "fs.read",
+      "arguments_delta": "{\"path\": \"config.toml\"}",
+      "complete": true
+    }
+  },
+  {
+    "turn_id": "01JQ4X8ZK9P2M7VN3RTYB6WCDE",
+    "seq": 2,
+    "provider": "ollama",
+    "type": "usage",
+    "usage": {
+      "input_tokens": 153,
+      "output_tokens": 22,
+      "estimated_cost_usd": null,
+      "token_counts_estimated": false
+    }
+  },
+  {
+    "turn_id": "01JQ4X8ZK9P2M7VN3RTYB6WCDE",
+    "seq": 3,
+    "provider": "ollama",
+    "type": "done",
+    "stop_reason": "tool_use"
+  }
+]

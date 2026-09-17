@@ -32,11 +32,16 @@ TOOL CALLS ARRIVE WHOLE, NOT INCREMENTALLY
     call is a valid call under `contracts/events/v1/stream-event.schema.json`, not a
     shortcut around it.
 
-OLLAMA GIVES NO CALL ID
-    Unlike Anthropic's `tool_use` blocks, Ollama's response does not name each tool call.
-    `call_id` is synthesized here (`ollama-<n>`, a per-stream counter) and is stable only
-    for the duration of one `stream()` call, which is all `ToolCallDelta.call_id`'s
-    contract — *"Stable for the whole call"* — actually requires.
+CALL IDS: A --LIVE CORRECTION
+    This module first shipped assuming Ollama's response never names a tool call, and
+    synthesized `ollama-<n>` unconditionally. A `--live` run against Ollama 0.34.1
+    (`qwen2.5:3b-instruct`) on 2026-09-17 showed that assumption was wrong: the real wire
+    response carries `tool_calls[].id` (`"call_uukikxqs"`, observed directly, not a doc
+    guess). The adapter now prefers that id and only synthesizes `ollama-<n>` when it is
+    absent — an older server, or a model whose chat template omits it. `ADR-0041`'s own
+    reasoning for `--live` existing at all: contract fixtures built from documentation
+    reviewed once and never run are exactly the failure shape `Phase2_Final_Signoff.md`
+    §1 found four times over.
 
 NOT WITNESSED AGAINST A LIVE OLLAMA
     No Ollama instance was reachable in the environment this was written in. Every line of
@@ -202,7 +207,7 @@ class OllamaProvider:
 
             for call in message.get("tool_calls", []):
                 fn = call.get("function", {})
-                cid = f"ollama-{tool_call_index[0]}"
+                cid = call.get("id") or f"ollama-{tool_call_index[0]}"
                 tool_call_index[0] += 1
                 yield emit(type="tool_call_delta", tool_call={
                     "call_id": cid, "index": tool_call_index[0] - 1,
