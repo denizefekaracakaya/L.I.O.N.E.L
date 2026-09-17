@@ -9,7 +9,7 @@ implementation each accepted decision commits to as well.
 | Gate | G2 → G3 |
 | Status | **OPEN** — all three Efe decisions made (ADR-0040, ADR-0041, item 4); items 2, 3, 5 still have implementation behind their decisions |
 | Items | 8 |
-| Done | **6 of 8 fully done (☑), 2 partial (◐)** |
+| Done | **7 of 8 fully done (☑), 1 partial (◐) — item 3, waiting on a `--live` recording session** |
 | Blocking | 0 |
 
 **This document states no counts about the pipeline.** `Phase1_Entry_Checklist.md` is out of
@@ -168,7 +168,7 @@ inside `_default_factory` only, the same shape `lionel.memory`'s `fastembed` imp
 already uses, for the same reason: a missing package should be a named error at the
 point of use, not an `ImportError` from CI's test collector.
 
-### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness not yet written**
+### ◐ 3. An ADR for the transcript-replay gate — **ADR-0041 accepted 2026-09-10; harness built 2026-09-17, no data or CI job yet**
 
 v1.0 required the cross-provider comparison as a one-time measurement. v2's DoD requires it
 as a regression gate — and, it turned out, contradicts itself about which phase it belongs
@@ -186,11 +186,34 @@ at G8, unchanged. `llamacpp` stays out of the comparison — ADR-0001 never name
 tool-calling reliability is the thing under study, not a fixture to measure against.
 `MASTER_PLAN_v2.md`'s `evals/` line now names both arrival dates.
 
-**Not done:** `evals/golden/` and `evals/harness/` are still empty, no CI job exists, and
-`check_env.sh` has no `--live` row for it yet. `ADR-0041`'s Erratum is explicit about why it
-comes after item 2's adapters rather than beside them: a golden case is a recorded
-transcript from a real `anthropic`/`ollama` call, and neither adapter exists to record one
-from yet. Building the harness first would be a comparison with nothing on either side.
+**`evals/harness/` is built.** `tool_calls_equivalent()` (name + parsed arguments, order-
+insensitive — `call_id`/`index` deliberately excluded, since Ollama's are synthesized and
+Anthropic's are real but provider-specific, so neither can be part of what a case pins),
+`GoldenCase` load/save, and `replay_case()` — which runs the existing, provider-agnostic
+`aggregate_stream()` over a *recorded `StreamEvent` sequence*, not a raw provider wire
+capture. That choice means replay does not need a second per-provider translator: whatever
+each adapter's `stream()` already emits is the thing a golden case pins. `evals/harness/run.py`
+is a runnable CLI reporting pass/fail/not-recorded per case. 18 tests, every fixture built
+by running the *real* `OllamaProvider` against a controlled fake transport and capturing
+its actual output — not a hand-typed guess at a `StreamEvent` shape.
+
+**`evals/golden/` is genuinely empty**, with a `README.md` documenting the case format so
+it survives being committed. No `anthropic` credential and no reachable `ollama` existed
+while this was built — the same gap every adapter's own docstring already names. Populating
+it needs a `--live` recording step this session could not run, and `run.py` says so in its
+own output every time it runs on zero cases, rather than reporting a silent, meaningless
+green.
+
+**No CI job yet, deliberately, not an oversight.** `ADR-0041` calls for a job that blocks
+merge on a regression; with zero recorded cases, that job would pass trivially on every
+push and report nothing — precisely `l0-conformance`'s own history, *"present, green, and
+hollow… worse than absent, because an absent gate is visibly missing and a green stub is
+not."* Wiring it is the harness's next step, the day the first case is recorded, not before.
+
+**Two smaller gaps left for the same reason:** no `artifacts.lock.yaml` entries yet (a
+pinned golden case needs a real recording to pin — `no-pending`'s own principle, one layer
+up from artifacts into eval data), and `check_env.sh` has no `--live` row, since there is no
+`--live` recording CLI yet to check preconditions for. Both follow the first real recording.
 
 ### ☑ 4. Whether `anthropic` may hold a credential at L0 — **DONE 2026-09-10, no new mechanism**
 
@@ -208,7 +231,7 @@ can drift apart. Nothing changed; nothing needs to.
 
 ## PERMITTED WITHOUT AN ADR — work, and item 1 has cleared
 
-### ◐ 5. `src/lionel/brain/` against the frozen contracts — **contract test done 2026-09-02, four defects found and fixed**
+### ☑ 5. `src/lionel/brain/` against the frozen contracts — **DONE 2026-09-17**
 
 The contracts Phase 3 builds to are already frozen and inside the checksum set:
 `tool-spec`, `stream-event`, `provider-request`, `provider-response`,
@@ -235,8 +258,12 @@ one of them was a `stability: stable` schema inside the checksum set, so §4 res
 to him. All five contracts are now 1.1.0: `HealthStatus` is one definition, a cancellation
 token and a reported tool name are each constrained by `$ref` to the schema that defines
 them, and the two `StopReason` copies became one. The four tests inverted into four
-coherence-pinning classes. **Item 5 is unblocked; `src/lionel/brain/` may be written against
-contracts that no longer contradict each other.**
+coherence-pinning classes.
+
+**Written.** `lionel.brain.streaming.aggregate_stream`, `lionel.brain.cancellation`, and
+three adapters (`OllamaProvider`, `AnthropicProvider`, `LlamaCppProvider`) under
+`src/lionel/brain/providers/`, against contracts that no longer contradict each other.
+Items 2, 5, 6, 7 and 8 together are the whole of what this item asked for.
 
 ### ☑ 6. The static check that no caller branches on provider name — **DONE 2026-09-10**
 
