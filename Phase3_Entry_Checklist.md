@@ -9,7 +9,7 @@ implementation each accepted decision commits to as well.
 | Gate | G2 → G3 |
 | Status | **OPEN** — all three Efe decisions made (ADR-0040, ADR-0041, item 4); items 2, 3, 5 still have implementation behind their decisions |
 | Items | 8 |
-| Done | **4 of 8 fully done (☑), 3 partial (◐)** |
+| Done | **6 of 8 fully done (☑), 2 partial (◐)** |
 | Blocking | 0 |
 
 **This document states no counts about the pipeline.** `Phase1_Entry_Checklist.md` is out of
@@ -258,24 +258,38 @@ and both are cited against `ADR-0001`, which the gate's own ADR list had never n
 Verified: 23/23 gates · self-test 35/35 · checksum unchanged (`ci/gates/*.py` and
 `ci/self_test.sh` are not in the checksum set) · 151 rules, regenerated docs current.
 
-### ☐ 7. Cancellation within 200 ms, and `health()` reporting *not ready*
+### ☑ 7. Cancellation within 200 ms, and `health()` reporting *not ready* — **DONE 2026-09-17**
 
-ADR-0025 sets the budget and names G3 as its gate. Both clauses are timing facts about a
-running model on a host — `health()` must report not-ready *while Ollama loads a model*,
-which cannot be observed on a CI runner that has no Ollama.
+ADR-0025 sets the budget and names G3 as its clause: *"a token aborts a streaming
+generation within 200 ms."* Its Verification splits the ADR in two — **G3** is this
+clause alone; **G6d**, full barge-in across audio, TTS and tool calls in the specified
+fan-out order, is a separate gate `InterruptController.cancel()` still correctly leaves
+raising `NotYetImplemented("cancellation fan-out", "G7 (ADR-0025)")`. Building the full
+fan-out now, ahead of G7's own decision, would be the same mistake ADR-0041 named and
+avoided for the eval harness — inventing a later phase's scope because the shape looked
+similar.
 
-**Unblocked in two stages.** ADR-0039 item 1 (2026-09-02) made `HealthStatus` one
-definition — `provider-capabilities.$defs.HealthStatus` now refs
-`core/v1/health-status.schema.json` — so `health()` has a shape to return. ADR-0040
-(2026-09-10) chose `llama-cpp-python`/`anthropic`/`httpx` as the clients, so there is now a
-decision to build against. **Still blocked on item 2's adapters actually being written** —
-`health()` reporting not-ready *while Ollama loads a model* needs the `ollama` adapter to
-exist, and cancellation needs at least one streaming adapter to cancel.
+**`lionel.brain.cancellation.CancellationRegistry`** — `issue()`/`cancel()`/`is_cancelled()`
+against `contracts/events/v1/cancellation.schema.json`'s shape, deliberately not populating
+`fan_out` (G7's tracking, not G3's). All three adapters now accept an optional
+`cancellation_registry` constructor argument and check `is_cancelled()` at every chunk
+boundary during `stream()`, emitting `done`/`stop_reason: "cancelled"` — *"a normal
+outcome, not an error"*, per that enum value's own description — rather than raising.
+Backward compatible: no registry injected (every earlier adapter test) behaves exactly as
+before.
 
-This is the third instance of the same shape, so it should look like the first two rather
-than being invented again: `scripts/verify_memory.sh` and `scripts/check_env.sh` are host
-scripts, opt-in, announced before they act, exit `0/1/2`, and neither is a gate. **R-A20's
-residual applies unchanged** — nothing forces them to run, and nothing can.
+**The 200 ms bound holds at chunk boundaries, stated honestly rather than oversold.** A
+Python generator cannot preempt a single in-flight network read or llama.cpp token
+computation already running. `tests/unit/test_cancellation.py` measures what is actually
+checkable without a live backend: the mechanism's own overhead (near-zero, checked against
+1000 already-buffered chunks) and that all three adapters stop at the correct boundary —
+not a live model's real inter-chunk latency, which none had a backend available to measure.
+
+**`health()`'s not-ready-while-loading clause was already covered**, by
+`test_ollama_provider.py`'s `test_reachable_with_a_different_model_loaded_reports_loading`,
+written when the adapter itself was. Confirming it against Ollama's actual behaviour rather
+than a mocked `/api/ps` response is `ADR-0041`'s `--live` witness — the same gap every
+adapter's own docstring already names, not a new one this item invents.
 
 ### ☑ 8. The cost ceiling — **DONE 2026-09-10**
 

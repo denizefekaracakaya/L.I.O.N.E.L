@@ -49,9 +49,11 @@ NOT WITNESSED AGAINST A LIVE OLLAMA
 from __future__ import annotations
 
 import json
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Mapping, Optional
 
 import httpx
+
+from lionel.brain.cancellation import CancellationRegistry
 
 __all__ = ["OllamaProvider", "OllamaError"]
 
@@ -79,12 +81,14 @@ class OllamaProvider:
     """
 
     def __init__(self, base_url: str, model: str, max_context_tokens: int, *,
-                client: httpx.Client | None = None, timeout_s: float = 120.0):
+                client: httpx.Client | None = None, timeout_s: float = 120.0,
+                cancellation_registry: Optional[CancellationRegistry] = None):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.max_context_tokens = max_context_tokens
         self._client = client or httpx.Client(timeout=timeout_s)
         self._owns_client = client is None
+        self._cancellation = cancellation_registry
 
     def close(self) -> None:
         if self._owns_client:
@@ -151,6 +155,7 @@ class OllamaProvider:
 
     def stream(self, request: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
         turn_id = request["turn_id"]
+        token_id = request.get("cancellation_token_id")
         payload = self._build_payload(request)
         seq = [0]
 
@@ -163,7 +168,7 @@ class OllamaProvider:
             with self._client.stream("POST", f"{self.base_url}/api/chat", json=payload,
                                      timeout=timeout) as response:
                 response.raise_for_status()
-                yield from self._consume(response, emit)
+                yield from self._consume(response, emit, token_id)
         except httpx.HTTPStatusError as exc:
             yield emit(type="error", error=_http_status_error(exc))
         except httpx.TimeoutException as exc:
@@ -175,9 +180,17 @@ class OllamaProvider:
                 "code": "unavailable", "message": f"{type(exc).__name__}: {exc}",
                 "retryable": True})
 
-    def _consume(self, response: httpx.Response, emit) -> Iterator[dict[str, Any]]:
+    def _consume(self, response: httpx.Response, emit,
+                token_id: Optional[str] = None) -> Iterator[dict[str, Any]]:
         tool_call_index = [0]
         for line in response.iter_lines():
+            # Checked at every chunk boundary — the earliest point a generator can act
+            # without preempting an in-flight network read. See the module docstring in
+            # lionel.brain.cancellation for the honest limit of this bound.
+            if (self._cancellation is not None and token_id is not None
+                    and self._cancellation.is_cancelled(token_id)):
+                yield emit(type="done", stop_reason="cancelled")
+                return
             if not line:
                 continue
             chunk = json.loads(line)

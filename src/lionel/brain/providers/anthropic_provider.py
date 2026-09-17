@@ -56,6 +56,8 @@ from typing import Any, Iterator, Mapping, Optional
 
 import anthropic
 
+from lionel.brain.cancellation import CancellationRegistry
+
 __all__ = ["AnthropicProvider", "AnthropicError"]
 
 # anthropic.types.stop_reason.StopReason, as of the installed SDK version. The four this
@@ -98,13 +100,15 @@ class AnthropicProvider:
                 default_max_output_tokens: int, *,
                 cost_per_1k_input_usd: Optional[float] = None,
                 cost_per_1k_output_usd: Optional[float] = None,
-                client: Optional[Any] = None):
+                client: Optional[Any] = None,
+                cancellation_registry: Optional[CancellationRegistry] = None):
         self.model = model
         self.max_context_tokens = max_context_tokens
         self.default_max_output_tokens = default_max_output_tokens
         self.cost_per_1k_input_usd = cost_per_1k_input_usd
         self.cost_per_1k_output_usd = cost_per_1k_output_usd
         self._client = client or anthropic.Anthropic(api_key=api_key)
+        self._cancellation = cancellation_registry
 
     # -- BrainProvider -------------------------------------------------------------------
 
@@ -161,6 +165,7 @@ class AnthropicProvider:
 
     def stream(self, request: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
         turn_id = request["turn_id"]
+        token_id = request.get("cancellation_token_id")
         seq = [0]
 
         def emit(**fields) -> dict[str, Any]:
@@ -170,7 +175,7 @@ class AnthropicProvider:
         kwargs = self._build_kwargs(request)
         try:
             with self._client.messages.stream(**kwargs) as stream:
-                yield from self._consume(stream, emit)
+                yield from self._consume(stream, emit, token_id)
         except anthropic.RateLimitError as exc:
             retry_after = None
             hdr = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after")
@@ -207,7 +212,8 @@ class AnthropicProvider:
                 "code": "internal", "message": str(exc),
                 "retryable": status is None or status >= 500})
 
-    def _consume(self, stream: Any, emit) -> Iterator[dict[str, Any]]:
+    def _consume(self, stream: Any, emit,
+                token_id: Optional[str] = None) -> Iterator[dict[str, Any]]:
         tool_blocks: dict[int, dict[str, Any]] = {}
         input_tokens = 0
         cached_input_tokens = 0
@@ -215,6 +221,12 @@ class AnthropicProvider:
         stop_reason = "provider_error"
 
         for event in stream:
+            # Checked at every SSE event boundary — see lionel.brain.cancellation's
+            # module docstring for the honest limit of this bound.
+            if (self._cancellation is not None and token_id is not None
+                    and self._cancellation.is_cancelled(token_id)):
+                yield emit(type="done", stop_reason="cancelled")
+                return
             etype = event.type
 
             if etype == "message_start":

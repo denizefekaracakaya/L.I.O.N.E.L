@@ -60,6 +60,8 @@ import json
 import threading
 from typing import Any, Iterator, Mapping, Optional
 
+from lionel.brain.cancellation import CancellationRegistry
+
 __all__ = ["LlamaCppProvider", "LlamaCppError"]
 
 # `llama_cpp` is imported LAZILY, inside `_default_factory`, and nowhere else in this
@@ -100,7 +102,8 @@ class LlamaCppProvider:
     def __init__(self, model_path: str, n_ctx: int, default_max_output_tokens: int, *,
                 supports_tools: bool = True, n_gpu_layers: int = 0,
                 n_threads: Optional[int] = None,
-                llama_factory: Optional[Any] = None):
+                llama_factory: Optional[Any] = None,
+                cancellation_registry: Optional[CancellationRegistry] = None):
         self.model_path = model_path
         self.n_ctx = n_ctx
         self.default_max_output_tokens = default_max_output_tokens
@@ -111,6 +114,7 @@ class LlamaCppProvider:
         self._llama: Optional[Any] = None
         self._load_error: Optional[Exception] = None
         self._lock = threading.Lock()
+        self._cancellation = cancellation_registry
 
     def _default_factory(self) -> Any:
         try:
@@ -180,6 +184,7 @@ class LlamaCppProvider:
 
     def stream(self, request: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
         turn_id = request["turn_id"]
+        token_id = request.get("cancellation_token_id")
         seq = [0]
 
         def emit(**fields) -> dict[str, Any]:
@@ -198,7 +203,7 @@ class LlamaCppProvider:
         n_before = llama.n_tokens
         try:
             chunks = llama.create_chat_completion(**kwargs)
-            yield from self._consume(llama, chunks, n_before, emit)
+            yield from self._consume(llama, chunks, n_before, emit, token_id)
         except (ValueError, RuntimeError) as exc:
             yield emit(type="error", error={
                 "code": "invalid_arguments" if isinstance(exc, ValueError) else "internal",
@@ -208,13 +213,20 @@ class LlamaCppProvider:
                 "code": "internal", "message": f"out of memory: {exc}", "retryable": False})
 
     def _consume(self, llama: Any, chunks: Iterator[dict], n_before: int,
-                emit) -> Iterator[dict[str, Any]]:
+                emit, token_id: Optional[str] = None) -> Iterator[dict[str, Any]]:
         text_parts: list[str] = []
         call_index = [0]
         open_call: Optional[dict] = None
         finish_reason: Optional[str] = None
 
         for chunk in chunks:
+            # Checked at every chunk boundary — see lionel.brain.cancellation's module
+            # docstring for the honest limit of this bound. A single llama.cpp token
+            # computation already in flight cannot be preempted from here.
+            if (self._cancellation is not None and token_id is not None
+                    and self._cancellation.is_cancelled(token_id)):
+                yield emit(type="done", stop_reason="cancelled")
+                return
             choice = chunk["choices"][0]
             delta = choice.get("delta", {})
 
